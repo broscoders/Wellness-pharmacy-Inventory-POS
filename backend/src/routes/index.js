@@ -12,5 +12,6 @@ router.use('/suppliers', require('./supplier.routes'));
 router.use('/customers', require('./customer.routes'));
 router.use('/medicines', require('./medicine.routes'));
 router.use('/inventory', require('./inventory.routes'));
+router.use('/sales', require('./sale.routes'));
 
 module.exports = router;

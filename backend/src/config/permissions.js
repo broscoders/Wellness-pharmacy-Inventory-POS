@@ -25,7 +25,7 @@ const ROLE_PERMISSIONS = {
     'medicines:view', 'medicines:manage',
     'inventory:view', 'inventory:manage',
     'customers:view',
-    'pos:use', 'sales:view', 'sales:return',
+    'pos:use', 'sales:view', 'sales:return', 'sales:discount',
     'prescriptions:view', 'prescriptions:manage',
   ],
   cashier: [
@@ -33,7 +33,7 @@ const ROLE_PERMISSIONS = {
     'medicines:view',
     'inventory:view',
     'customers:view', 'customers:manage',
-    'pos:use', 'sales:view',
+    'pos:use', 'sales:view', 'sales:discount',
     'payments:manage',
   ],
   inventory: [
