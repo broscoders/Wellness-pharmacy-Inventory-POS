@@ -5,7 +5,7 @@ const connectDB = require('./config/db');
 
 connectDB()
   .then(() => {
-    app.listen(env.port, () => console.log(`API running on port ${env.port} (${env.nodeEnv})`));
+    app.listen(env.port, () => console.log(`🚀 API running on http://localhost:${env.port} (${env.nodeEnv})`));
   })
   .catch((err) => {
     console.error('Failed to start server:', err.message);

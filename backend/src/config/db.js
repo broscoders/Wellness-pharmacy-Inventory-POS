@@ -13,11 +13,20 @@ async function connectDB() {
   }
   try {
     cached.conn = await cached.promise;
+    if (!cached.logged) {
+      cached.logged = true;
+      const { host, name } = cached.conn.connection;
+      console.log(`✅ MongoDB connected successfully (host: ${host}, database: ${name})`);
+    }
   } catch (err) {
+    console.error(`❌ MongoDB connection FAILED: ${err.message}`);
     cached.promise = null;
     throw err;
   }
   return cached.conn;
 }
+
+connectDB.status = () =>
+  ['disconnected', 'connected', 'connecting', 'disconnecting'][mongoose.connection.readyState] || 'unknown';
 
 module.exports = connectDB;
