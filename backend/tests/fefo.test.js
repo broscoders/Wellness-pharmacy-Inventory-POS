@@ -14,6 +14,11 @@ const DAY = 86400000;
 test('FEFO picks earliest expiry first, skips expired, and never oversells', async (t) => {
   const uri = process.env.MONGODB_URI.replace(/\/[^/?]*(\?|$)/, '/wellness_fefo_test$1');
   await mongoose.connect(uri);
+  // Safety guard: this test drops its database at the end, so it must NEVER run on a real one.
+  if (mongoose.connection.name !== 'wellness_fefo_test') {
+    await mongoose.disconnect();
+    throw new Error(`Refusing to run: connected to "${mongoose.connection.name}", expected "wellness_fefo_test"`);
+  }
   t.after(async () => { await mongoose.connection.dropDatabase(); await mongoose.disconnect(); });
 
   const med = await Medicine.create({ name: 'FEFO Test', stripsPerBox: 10, unitsPerStrip: 10 });
