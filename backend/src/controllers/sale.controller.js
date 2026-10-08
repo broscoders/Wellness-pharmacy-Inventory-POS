@@ -1,6 +1,7 @@
 const { z } = require('zod');
 const Sale = require('../models/Sale');
 const SaleReturn = require('../models/SaleReturn');
+const Prescription = require('../models/Prescription');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
 const audit = require('../utils/audit');
@@ -18,6 +19,7 @@ const createSchema = z.object({
   payments: z.array(z.object({ method: z.enum(['cash', 'card', 'bank_transfer', 'credit']), amount: z.number().positive() })).min(1, 'Add a payment'),
   notes: z.string().trim().max(300).optional(),
   prescriptionConfirmed: z.boolean().optional(),
+  prescription: objectId.optional().nullable(),
 });
 
 const returnSchema = z.object({
@@ -33,7 +35,20 @@ const create = asyncHandler(async (req, res) => {
   if (req.body.discount > 0 && !req.user.permissions().includes('sales:discount')) {
     throw ApiError.forbidden('You are not allowed to give discounts');
   }
+  let rx = null;
+  if (req.body.prescription) {
+    rx = await Prescription.findById(req.body.prescription);
+    if (!rx) throw ApiError.badRequest('Prescription not found');
+    req.body.prescriptionConfirmed = true; // a recorded prescription counts as confirmed
+  } else {
+    delete req.body.prescription;
+  }
   const sale = await checkout(req.body, req.user);
+  if (rx) {
+    await Sale.updateOne({ _id: sale._id }, { $set: { prescription: rx._id } });
+    await Prescription.updateOne({ _id: rx._id }, { $addToSet: { sales: sale._id } });
+    sale.prescription = rx._id;
+  }
   if (sale.discount > 0) await audit(req, 'sale.discount', 'Sale', sale._id, { invoiceNo: sale.invoiceNo, discount: sale.discount, subtotal: sale.subtotal });
   res.status(201).json({ success: true, data: sale });
 });
