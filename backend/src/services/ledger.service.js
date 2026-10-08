@@ -21,3 +21,17 @@ async function postCustomerLedger({ customerId, amount, type, method, note, sale
 }
 
 module.exports = { postCustomerLedger };
+
+const Supplier = require('../models/Supplier');
+const SupplierLedger = require('../models/SupplierLedger');
+
+// Atomically change what we owe a supplier and write a ledger row.
+async function postSupplierLedger({ supplierId, amount, type, method, note, purchase, refNo, user }) {
+  const supplier = await Supplier.findByIdAndUpdate(supplierId, { $inc: { balance: round2(amount) } }, { returnDocument: 'after' });
+  await SupplierLedger.create({
+    supplier: supplierId, type, amount: round2(amount), balanceAfter: round2(supplier.balance), method, note, purchase, refNo, user: user?._id, userName: user?.name,
+  });
+  return supplier;
+}
+
+module.exports.postSupplierLedger = postSupplierLedger;

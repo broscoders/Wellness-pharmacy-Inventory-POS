@@ -8,7 +8,7 @@ const audit = require('../utils/audit');
 const { getPagination, pageMeta } = require('../utils/pagination');
 const { toBase, fromBase, parseExpiry, unitsPerBox } = require('../utils/units');
 const { applyMovement } = require('../services/stock.service');
-const { stockByMedicine, expiryStatus, DAY } = require('../services/inventory.service');
+const { expiryStatus, DAY, getAlerts } = require('../services/inventory.service');
 const { objectId } = require('./medicine.controller');
 
 const qtySchema = z.object({
@@ -120,42 +120,8 @@ const movements = asyncHandler(async (req, res) => {
 
 // Low stock / out of stock / expired / near expiry (30, 60, 90 days) in one call.
 const alerts = asyncHandler(async (req, res) => {
-  const now = new Date();
-  const [meds, stockMap, batches] = await Promise.all([
-    Medicine.find({ isActive: true }).select('name genericName minStockLevel stripsPerBox unitsPerStrip'),
-    stockByMedicine(),
-    Batch.find({ isActive: true, quantity: { $gt: 0 } }).populate('medicine', 'name stripsPerBox unitsPerStrip').sort({ expiryDate: 1 }),
-  ]);
-
-  const lowStock = [];
-  const outOfStock = [];
-  for (const m of meds) {
-    const s = stockMap.get(String(m._id)) || { sellable: 0 };
-    const row = { _id: m._id, name: m.name, genericName: m.genericName, minStockLevel: m.minStockLevel, available: s.sellable, display: fromBase(m, s.sellable) };
-    if (s.sellable === 0) outOfStock.push(row);
-    else if (s.sellable <= m.minStockLevel) lowStock.push(row);
-  }
-
-  const expired = [];
-  const near = { d30: [], d60: [], d90: [] };
-  for (const b of batches) {
-    if (!b.medicine) continue;
-    const { status, daysLeft } = expiryStatus(b.expiryDate, now);
-    const row = { batchId: b._id, medicine: b.medicine.name, batchNumber: b.batchNumber, expiryDate: b.expiryDate, daysLeft, quantity: b.quantity, display: fromBase(b.medicine, b.quantity) };
-    if (status === 'expired') expired.push(row);
-    else if (status === 'expiring_30') near.d30.push(row);
-    else if (status === 'expiring_60') near.d60.push(row);
-    else if (status === 'expiring_90') near.d90.push(row);
-  }
-
-  res.json({
-    success: true,
-    data: { lowStock, outOfStock, expired, nearExpiry: near },
-    counts: {
-      lowStock: lowStock.length, outOfStock: outOfStock.length, expired: expired.length,
-      nearExpiry30: near.d30.length, nearExpiry60: near.d60.length, nearExpiry90: near.d90.length,
-    },
-  });
+  const { data, counts } = await getAlerts();
+  res.json({ success: true, data, counts });
 });
 
 // Totals for the dashboard / reports. Stock value = quantity x purchase cost per unit.

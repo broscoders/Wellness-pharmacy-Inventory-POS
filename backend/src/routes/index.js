@@ -13,5 +13,7 @@ router.use('/customers', require('./customer.routes'));
 router.use('/medicines', require('./medicine.routes'));
 router.use('/inventory', require('./inventory.routes'));
 router.use('/sales', require('./sale.routes'));
+router.use('/purchases', require('./purchase.routes'));
+router.use('/dashboard', require('./dashboard.routes'));
 
 module.exports = router;
