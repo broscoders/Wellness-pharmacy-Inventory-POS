@@ -70,6 +70,7 @@ async function checkout(input, user) {
           batchNumber: batch.batchNumber,
           expiryDate: batch.expiryDate,
           unitType: line.unitType,
+          cartQty: line.quantity,
           baseQty: quantity,
           pricePerBase: perBase,
           lineTotal,

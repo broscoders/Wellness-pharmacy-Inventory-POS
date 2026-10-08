@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #14211d;
+  --color-muted: #5b6b66;
+  --color-line: #dce5e1;
+  --color-paper: #f5f8f7;
+  --color-card: #ffffff;
+  --color-pine: #0e6b5c;
+  --color-pine-dark: #0a4f44;
+  --color-mint: #e4f1ed;
+  --color-amber: #b7791f;
+  --color-amber-soft: #fbf1dc;
+  --color-danger: #b42318;
+  --color-danger-soft: #fdeceb;
+  --font-sans: "Segoe UI", "Inter", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+
+html, body { height: 100%; }
+body { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-sans); font-size: 14px; line-height: 1.45; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* Receipt printing: only the receipt is printed, 80mm thermal width */
+@media print {
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area { position: absolute; left: 0; top: 0; width: 80mm; padding: 4mm; font-size: 11px; }
+  .no-print { display: none !important; }
+}

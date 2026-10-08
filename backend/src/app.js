@@ -9,6 +9,7 @@ const env = require('./config/env');
 const connectDB = require('./config/db');
 const routes = require('./routes');
 const { notFound, errorHandler } = require('./middleware/error');
+const ApiError = require('./utils/ApiError');
 
 const app = express();
 
@@ -19,7 +20,7 @@ app.use(
     origin: (origin, cb) => {
       // allow same-origin / server-to-server (no Origin header) and whitelisted frontends
       if (!origin || env.clientUrls.includes(origin)) return cb(null, true);
-      return cb(new Error('Not allowed by CORS'));
+      return cb(ApiError.forbidden(`Origin ${origin} is not allowed. Add it to CLIENT_URL on the backend.`));
     },
     credentials: true,
   })

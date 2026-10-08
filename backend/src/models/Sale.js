@@ -8,6 +8,7 @@ const itemSchema = new mongoose.Schema({
   batchNumber: String,
   expiryDate: Date,
   unitType: { type: String, enum: ['box', 'strip', 'unit'] }, // how the cashier sold it
+  cartQty: Number, // quantity typed by the cashier for the whole cart line, in unitType (for receipts)
   baseQty: { type: Number, required: true }, // quantity in base units (tablets)
   returnedBase: { type: Number, default: 0 },
   pricePerBase: Number,
