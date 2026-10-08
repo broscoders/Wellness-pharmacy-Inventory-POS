@@ -12,12 +12,14 @@ frontend/   Next.js (App Router) + Tailwind web app
 
 | Phase | Scope | State |
 |---|---|---|
-| 1 | Login, roles, users, categories, suppliers, customers | Backend done |
-| 2 | Medicines, batches, expiry alerts, box/strip/unit stock, FEFO | Backend done |
-| 3 | POS billing, receipts, returns, invoice cancel, udhaar | Backend + frontend (POS, Sales) done |
-| 4 | Purchases, supplier ledger/payments, purchase returns, dashboard | Backend done, dashboard UI done |
-| 5 | Prescriptions, expenses | Pending |
-| 6 | Reports, remaining screens (inventory, purchases, suppliers, customers, users), final testing | Pending |
+| 1 | Login, roles, users, categories, suppliers, customers | Done (API + screens) |
+| 2 | Medicines, batches, expiry alerts, box/strip/unit stock, FEFO | Done (API + screens) |
+| 3 | POS billing, receipts, returns, invoice cancel, udhaar | Done (API + screens) |
+| 4 | Purchases, supplier ledger/payments, purchase returns, dashboard | Done (API + screens) |
+| 5 | Prescriptions (with photo/PDF upload), expenses | Done (API + screens) |
+| 6 | Reports (sales, profit, inventory, suppliers, customers, CSV export), audit log, full testing | Done |
+
+Remaining before go-live: deploy to Vercel, create the owner account on the production database, enter the real medicine list / opening stock, and train staff.
 
 ## Roles
 
@@ -110,8 +112,12 @@ Check: `https://<backend>/api/health` shows `"database":"connected"`.
 cd backend
 npm test
 ```
-`tests/fefo.test.js` creates and drops its own throwaway database (`wellness_fefo_test`) and refuses to run against any other database.
-On real MongoDB/Atlas it also checks that two simultaneous sales cannot oversell the last stock.
+- `tests/units.test.js` - box/strip/unit conversion and expiry parsing.
+- `tests/fefo.test.js` - FEFO allocation (uses throwaway database `wellness_fefo_test`).
+- `tests/api.flow.test.js` - whole business flow through the real API: login and permissions, FEFO sale with change, rollback of a failed bill, returns, udhaar and customer payments, invoice cancel, purchase with supplier ledger and purchase return, prescription-only medicine, reports vs dashboard (uses throwaway database `wellness_api_test`).
+
+Both database tests drop their own throwaway database at the end and **refuse to run** if they are connected to any other database.
+On real MongoDB/Atlas `fefo.test.js` also checks that two simultaneous sales cannot oversell the last stock.
 
 ## Troubleshooting
 

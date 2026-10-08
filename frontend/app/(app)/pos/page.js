@@ -1,12 +1,13 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Minus, Plus, Printer, Search, Trash2, UserRound, X } from 'lucide-react';
+import { Minus, Plus, Printer, Search, Trash2, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { money, stockText } from '@/lib/format';
 import { baseQtyOfType, round2, sellPrice } from '@/lib/units';
 import { Badge, Button, Card, ErrorNote, Field, Input, Modal, PageHeader, Select } from '@/components/ui';
 import Receipt from '@/components/Receipt';
+import CustomerPicker from '@/components/CustomerPicker';
 
 const defaultUnit = (m) => (m.salePrice?.strip > 0 || m.stripsPerBox > 1 ? 'strip' : m.salePrice?.unit > 0 ? 'unit' : 'box');
 
@@ -21,6 +22,7 @@ export default function PosPage() {
   const [discount, setDiscount] = useState('');
   const [pay, setPay] = useState({ cash: '', card: '', bank_transfer: '', credit: '' });
   const [rx, setRx] = useState(false);
+  const [rxLink, setRxLink] = useState(null); // recorded prescription used for this bill
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(null);
@@ -79,7 +81,7 @@ export default function PosPage() {
   const needsRx = lines.some((l) => l.med.requiresPrescription);
   const hasShort = lines.some((l) => l.short);
   const hasNoPrice = lines.some((l) => !l.unitPrice);
-  const canPay = lines.length > 0 && remaining <= 0 && !hasShort && !hasNoPrice && (!needsRx || rx) && (credit === 0 || customer);
+  const canPay = lines.length > 0 && remaining <= 0 && !hasShort && !hasNoPrice && (!needsRx || rx || rxLink) && (credit === 0 || customer);
 
   async function checkout() {
     setBusy(true); setError('');
@@ -89,7 +91,7 @@ export default function PosPage() {
         method: 'POST',
         body: {
           type: saleType, customer: customer?._id || undefined, discount: disc || undefined, payments,
-          prescriptionConfirmed: needsRx ? rx : undefined,
+          prescriptionConfirmed: needsRx && !rxLink ? rx : undefined, prescription: rxLink?._id || undefined,
           items: lines.map((l) => ({ medicine: l.med._id, unitType: l.unitType, quantity: l.qty })),
         },
       });
@@ -98,7 +100,7 @@ export default function PosPage() {
   }
 
   function reset() {
-    setDone(null); setCart([]); setCustomer(null); setDiscount(''); setPay({ cash: '', card: '', bank_transfer: '', credit: '' }); setRx(false); setError('');
+    setDone(null); setCart([]); setCustomer(null); setDiscount(''); setPay({ cash: '', card: '', bank_transfer: '', credit: '' }); setRx(false); setRxLink(null); setError('');
   }
 
   return (
@@ -151,7 +153,7 @@ export default function PosPage() {
         </div>
 
         <Card className="h-fit space-y-3 p-4">
-          <CustomerPicker customer={customer} onChange={setCustomer} />
+          <CustomerPicker customer={customer} onChange={setCustomer} label="Customer (optional, needed for udhaar)" />
           <div className="space-y-1 border-y border-line py-3 text-sm num">
             <div className="flex justify-between"><span className="text-muted">Subtotal</span><span>{money(subtotal)}</span></div>
             {can('sales:discount') && <div className="flex items-center justify-between gap-3"><span className="text-muted">Discount</span><Input className="num h-8 w-28 text-right" type="number" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" /></div>}
@@ -165,7 +167,13 @@ export default function PosPage() {
             <Button variant="secondary" size="sm" className="w-full" onClick={() => setPay({ cash: String(total), card: '', bank_transfer: '', credit: '' })} disabled={!total}>Full amount in cash</Button>
           </div>
 
-          {needsRx && <label className="flex items-start gap-2 rounded-md bg-amber-soft p-2 text-sm"><input type="checkbox" className="mt-1" checked={rx} onChange={(e) => setRx(e.target.checked)} /> I have checked the prescription for the Rx medicines in this bill.</label>}
+          {needsRx && (
+            <div className="space-y-2 rounded-md bg-amber-soft p-2 text-sm">
+              <p className="font-medium text-amber">This bill has prescription (Rx) medicines.</p>
+              {can('prescriptions:view') && <RxPicker value={rxLink} onChange={setRxLink} customer={customer} />}
+              {!rxLink && <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={rx} onChange={(e) => setRx(e.target.checked)} /> I have checked the prescription for the Rx medicines in this bill.</label>}
+            </div>
+          )}
           {credit > 0 && !customer && <p className="text-sm text-danger">Select a customer for udhaar.</p>}
           <div className="num text-sm">
             {remaining > 0 && <p className="font-medium text-danger">Remaining: {money(remaining)}</p>}
@@ -184,33 +192,22 @@ export default function PosPage() {
   );
 }
 
-function CustomerPicker({ customer, onChange }) {
+function RxPicker({ value, onChange, customer }) {
   const [term, setTerm] = useState('');
   const [list, setList] = useState([]);
   useEffect(() => {
-    if (!term.trim()) { setList([]); return undefined; }
-    const t = setTimeout(() => api('/customers', { params: { search: term.trim(), active: 'true', limit: 6 } }).then((r) => setList(r.data)).catch(() => {}), 200);
+    const t = setTimeout(() => api('/prescriptions', { params: { search: term.trim() || customer?.name, limit: 5 } }).then((r) => setList(r.data)).catch(() => {}), 250);
     return () => clearTimeout(t);
-  }, [term]);
-
-  if (customer) {
-    return (
-      <div className="flex items-center justify-between rounded-md bg-mint px-3 py-2">
-        <div className="flex items-center gap-2"><UserRound className="h-4 w-4 text-pine-dark" /><div><p className="font-medium">{customer.name}</p><p className="num text-xs text-muted">Owes {money(customer.balance)}{customer.creditLimit ? ` | limit ${money(customer.creditLimit)}` : ''}</p></div></div>
-        <button onClick={() => onChange(null)} aria-label="Remove customer"><X className="h-4 w-4" /></button>
-      </div>
-    );
-  }
+  }, [term, customer]);
+  if (value) return <div className="flex items-center justify-between rounded bg-white px-2 py-1"><span>{value.rxNo} - Dr. {value.doctorName}</span><button onClick={() => onChange(null)} aria-label="Unlink"><X className="h-4 w-4" /></button></div>;
   return (
-    <Field label="Customer (optional, needed for udhaar)">
-      <div className="relative">
-        <Input placeholder="Search name or phone - blank = walk-in" value={term} onChange={(e) => setTerm(e.target.value)} />
-        {list.length > 0 && (
-          <ul className="absolute z-10 mt-1 w-full rounded-md border border-line bg-white shadow-lg">
-            {list.map((c) => <li key={c._id}><button className="flex w-full justify-between px-3 py-2 text-left hover:bg-mint" onClick={() => { onChange(c); setTerm(''); setList([]); }}><span>{c.name}</span><span className="text-xs text-muted">{c.phone}</span></button></li>)}
-          </ul>
-        )}
-      </div>
-    </Field>
+    <div className="relative">
+      <Input className="h-9 bg-white" placeholder="Link a recorded prescription (doctor, patient or RX no.)" value={term} onChange={(e) => setTerm(e.target.value)} />
+      {list.length > 0 && term && (
+        <ul className="absolute z-20 mt-1 w-full rounded-md border border-line bg-white shadow-lg">
+          {list.map((r) => <li key={r._id}><button type="button" className="flex w-full justify-between px-3 py-2 text-left hover:bg-mint" onClick={() => { onChange(r); setTerm(''); }}><span>{r.rxNo} | Dr. {r.doctorName}</span><span className="text-xs text-muted">{r.customerName}</span></button></li>)}
+        </ul>
+      )}
+    </div>
   );
 }
