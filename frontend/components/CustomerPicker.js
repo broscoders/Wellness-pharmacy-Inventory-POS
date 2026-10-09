@@ -10,8 +10,9 @@ export default function CustomerPicker({ customer, onChange, label = 'Customer (
   const [list, setList] = useState([]);
   useEffect(() => {
     if (!term.trim()) { setList([]); return undefined; }
-    const t = setTimeout(() => api('/customers', { params: { search: term.trim(), active: 'true', limit: 6 } }).then((r) => setList(r.data)).catch(() => {}), 200);
-    return () => clearTimeout(t);
+    let alive = true;
+    const t = setTimeout(() => api('/customers', { params: { search: term.trim(), active: 'true', limit: 6 } }).then((r) => { if (alive) setList(r.data); }).catch(() => {}), 200);
+    return () => { alive = false; clearTimeout(t); };
   }, [term]);
 
   if (customer) {

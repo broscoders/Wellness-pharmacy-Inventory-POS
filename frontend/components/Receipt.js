@@ -1,4 +1,6 @@
 'use client';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { dateTime, money } from '@/lib/format';
 
 // Groups the per-batch rows back into the lines the cashier entered.
@@ -13,10 +15,10 @@ function groupLines(items) {
   return [...map.values()];
 }
 
-export default function Receipt({ sale }) {
+function Body({ sale }) {
   const lines = groupLines(sale.items);
   return (
-    <div className="print-area mx-auto w-full max-w-[320px] bg-white font-mono text-[12px] leading-5 text-black">
+    <>
       <div className="text-center">
         <p className="text-base font-bold">WELLNESS PHARMACY</p>
         <p>{sale.type === 'wholesale' ? 'Wholesale invoice' : 'Retail invoice'}</p>
@@ -46,7 +48,20 @@ export default function Receipt({ sale }) {
         {sale.creditAmount > 0 && <Row k="On credit (udhaar)" v={money(sale.creditAmount)} bold />}
       </div>
       <p className="mt-3 text-center">Thank you! Medicines once sold can be returned only with this receipt.</p>
-    </div>
+    </>
+  );
+}
+
+// Shows the receipt on screen, and keeps a second copy at the end of <body> that is the ONLY thing
+// printed (see .print-root in globals.css). This way the rest of the page takes no space on paper.
+export default function Receipt({ sale }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return (
+    <>
+      <div className="mx-auto w-full max-w-[320px] bg-white font-mono text-[12px] leading-5 text-black"><Body sale={sale} /></div>
+      {mounted && createPortal(<div className="print-root font-mono"><Body sale={sale} /></div>, document.body)}
+    </>
   );
 }
 

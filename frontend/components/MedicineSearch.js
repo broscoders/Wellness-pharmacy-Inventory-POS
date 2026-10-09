@@ -10,8 +10,9 @@ export default function MedicineSearch({ onPick, placeholder = 'Search medicine.
   const [list, setList] = useState([]);
   useEffect(() => {
     if (!term.trim()) { setList([]); return undefined; }
-    const t = setTimeout(() => api('/medicines', { params: { search: term.trim(), active: 'true', limit: 8 } }).then((r) => setList(r.data)).catch(() => {}), 200);
-    return () => clearTimeout(t);
+    let alive = true;
+    const t = setTimeout(() => api('/medicines', { params: { search: term.trim(), active: 'true', limit: 8 } }).then((r) => { if (alive) setList(r.data); }).catch(() => {}), 200);
+    return () => { alive = false; clearTimeout(t); };
   }, [term]);
   return (
     <div className="relative">

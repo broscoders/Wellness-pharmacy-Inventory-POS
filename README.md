@@ -49,6 +49,15 @@ npm install
 npm run dev                        # Web app on http://localhost:3000
 ```
 
+Optional demo data (110 medicines in 10 categories, batches with near-expiry / expired / low-stock cases, 5 suppliers, 8 customers):
+
+```powershell
+cd backend
+npm run seed:demo              # add
+npm run seed:demo -- --remove  # remove again (refused for items already used in real bills)
+```
+Demo medicines have barcodes starting with `8961000` (e.g. `8961000000001` = Panadol 500mg) so you can test the barcode box on the POS screen. Prices are approximate.
+
 Sign in with the `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` you put in `backend/.env`.
 When the backend starts it prints `MongoDB connected successfully`, or `MongoDB connection FAILED` with the reason.
 `GET /api/health` also reports the database state.
@@ -66,6 +75,7 @@ When the backend starts it prints `MongoDB connected successfully`, or `MongoDB 
 | `NODE_ENV` | no | `production` on Vercel. |
 | `PORT` | no | Default 5000 (local only). |
 | `JWT_ACCESS_EXPIRES` / `JWT_REFRESH_EXPIRES` | no | Defaults `15m` / `7d`. |
+| `DNS_SERVERS` | no | Only if the backend prints `querySrv ETIMEOUT`: `8.8.8.8,1.1.1.1` (Google/Cloudflare DNS for the Atlas lookup). |
 | `BUSINESS_TZ_OFFSET_MIN` | no | Minutes from UTC used for "today". Default `300` (Pakistan). |
 | `SEED_ADMIN_NAME`, `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | seed only | First owner account. |
 
@@ -125,5 +135,7 @@ On real MongoDB/Atlas `fefo.test.js` also checks that two simultaneous sales can
 |---|---|
 | `Origin ... is not allowed` on login | Add the frontend URL to `CLIENT_URL` in the backend env and restart/redeploy. |
 | Frontend shows network errors for `/api` | `BACKEND_URL` wrong or missing at build time. Fix and rebuild. |
+| `querySrv ETIMEOUT` | DNS problem on your network. Add `DNS_SERVERS=8.8.8.8,1.1.1.1` to `backend/.env`, or change your PC's DNS to 8.8.8.8, or use Atlas' non-SRV (`mongodb://...`) connection string, or try a mobile hotspot. |
+| Receipt prints blank / extra pages | Use the Print button in the app (not Ctrl+P on another page). For thermal printers choose the printer's 80mm roll paper in the print dialog and set margins to None. |
 | `MongoDB connection FAILED` | Check Atlas Network Access, DB user password (URL-encode special characters), and that the URI has a database name. |
 | `npm install` errors on Windows (`TAR_ENTRY_ERROR`, `ENOTEMPTY`) | Keep the project outside OneDrive/Desktop (e.g. `C:\Projects`) and run `npm cache clean --force`. |

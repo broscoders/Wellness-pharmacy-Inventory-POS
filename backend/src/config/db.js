@@ -1,5 +1,12 @@
+const dns = require('dns');
 const mongoose = require('mongoose');
 const env = require('./env');
+
+// Some ISPs / routers time out on the DNS SRV lookup that mongodb+srv:// needs
+// (error: "querySrv ETIMEOUT"). Setting DNS_SERVERS=8.8.8.8,1.1.1.1 in .env makes Node use Google/Cloudflare DNS.
+if (process.env.DNS_SERVERS) {
+  dns.setServers(process.env.DNS_SERVERS.split(',').map((s) => s.trim()).filter(Boolean));
+}
 
 // Cached connection: required so Vercel serverless invocations reuse the connection.
 let cached = global.__mongoose;
@@ -20,6 +27,9 @@ async function connectDB() {
     }
   } catch (err) {
     console.error(`❌ MongoDB connection FAILED: ${err.message}`);
+    if (/querySrv|ETIMEOUT|ENOTFOUND/.test(err.message)) {
+      console.error('   Hint: this is a DNS problem on this network. Add  DNS_SERVERS=8.8.8.8,1.1.1.1  to backend/.env, or use the non-SRV (mongodb://) connection string from Atlas, or try another network/hotspot.');
+    }
     cached.promise = null;
     throw err;
   }

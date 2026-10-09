@@ -32,10 +32,11 @@ export default function PosPage() {
   // live search (debounced)
   useEffect(() => {
     if (!term.trim()) { setResults([]); return undefined; }
+    let alive = true; // ignore answers that arrive after the user typed something else or picked an item
     const t = setTimeout(() => {
-      api('/medicines', { params: { search: term.trim(), active: 'true', limit: 8 } }).then((r) => setResults(r.data)).catch(() => {});
+      api('/medicines', { params: { search: term.trim(), active: 'true', limit: 8 } }).then((r) => { if (alive) setResults(r.data); }).catch(() => {});
     }, 200);
-    return () => clearTimeout(t);
+    return () => { alive = false; clearTimeout(t); };
   }, [term]);
 
   function addToCart(med) {
@@ -196,8 +197,9 @@ function RxPicker({ value, onChange, customer }) {
   const [term, setTerm] = useState('');
   const [list, setList] = useState([]);
   useEffect(() => {
-    const t = setTimeout(() => api('/prescriptions', { params: { search: term.trim() || customer?.name, limit: 5 } }).then((r) => setList(r.data)).catch(() => {}), 250);
-    return () => clearTimeout(t);
+    let alive = true;
+    const t = setTimeout(() => api('/prescriptions', { params: { search: term.trim() || customer?.name, limit: 5 } }).then((r) => { if (alive) setList(r.data); }).catch(() => {}), 250);
+    return () => { alive = false; clearTimeout(t); };
   }, [term, customer]);
   if (value) return <div className="flex items-center justify-between rounded bg-white px-2 py-1"><span>{value.rxNo} - Dr. {value.doctorName}</span><button onClick={() => onChange(null)} aria-label="Unlink"><X className="h-4 w-4" /></button></div>;
   return (

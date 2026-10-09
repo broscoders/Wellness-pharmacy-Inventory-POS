@@ -20,10 +20,13 @@ html, body { height: 100%; }
 body { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-sans); font-size: 14px; line-height: 1.45; }
 .num { font-variant-numeric: tabular-nums; }
 
-/* Receipt printing: only the receipt is printed, 80mm thermal width */
+/* Receipt printing: only .print-root (a copy of the receipt placed at the end of <body>) is printed.
+   Works on 80mm thermal printers (choose the printer's roll paper) and on normal A4/Letter printers. */
+.print-root { display: none; }
+@page { margin: 0; }
 @media print {
-  body * { visibility: hidden; }
-  .print-area, .print-area * { visibility: visible; }
-  .print-area { position: absolute; left: 0; top: 0; width: 80mm; padding: 4mm; font-size: 11px; }
+  html, body { background: #fff !important; height: auto !important; margin: 0 !important; }
+  body > *:not(.print-root) { display: none !important; }
+  .print-root { display: block !important; width: 80mm; padding: 4mm; font-size: 11px; line-height: 1.4; color: #000; background: #fff; }
   .no-print { display: none !important; }
 }
