@@ -49,14 +49,26 @@ npm install
 npm run dev                        # Web app on http://localhost:3000
 ```
 
-Optional demo data (110 medicines in 10 categories, batches with near-expiry / expired / low-stock cases, 5 suppliers, 8 customers):
+Optional demo data: 110 medicines in 10 categories (with manufacturers, barcodes, batches, near-expiry / expired / low-stock cases), 5 suppliers, 8 customers **plus 30 days of activity** - purchases, retail and wholesale sales (cash / card / bank / udhaar), returns, cancellations, customer and supplier payments, prescriptions, expenses and 3 demo staff accounts - so every screen and report has something to show.
 
 ```powershell
 cd backend
-npm run seed:demo              # add
-npm run seed:demo -- --remove  # remove again (refused for items already used in real bills)
+npm run seed:demo                    # everything above (the owner account must exist: npm run seed)
+npm run seed:demo -- --no-activity   # only medicines, suppliers, customers
+npm run seed:demo -- --remove        # remove all demo data again
 ```
-Demo medicines have barcodes starting with `8961000` (e.g. `8961000000001` = Panadol 500mg) so you can test the barcode box on the POS screen. Prices are approximate.
+The passwords of the demo staff accounts are printed once in the terminal when they are created (they use the e-mail domain `@demo.wellness.local`). Prices are approximate. Demo medicines have barcodes starting with `8961000` (e.g. `8961000000001` = Panadol 500mg) so you can test the barcode box on the POS screen.
+
+### Clean the database before real use (go-live)
+`reset:data` deletes **all** business data (medicines, stock, sales, purchases, customers, suppliers, ledgers, prescriptions, expenses, audit log, invoice counters) and the demo staff. Real user accounts and categories are kept. It refuses to run unless you pass `--yes` **and** set `CONFIRM_DB_NAME` to the exact database name it is connected to:
+
+```powershell
+cd backend
+$env:MONGODB_URI = "mongodb+srv://USER:PASS@cluster.mongodb.net/wellness_pharmacy_prod?retryWrites=true&w=majority"
+npm run reset:data                                   # only shows what it would delete
+$env:CONFIRM_DB_NAME = "wellness_pharmacy_prod"
+npm run reset:data -- --yes                          # really deletes
+```
 
 Sign in with the `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` you put in `backend/.env`.
 When the backend starts it prints `MongoDB connected successfully`, or `MongoDB connection FAILED` with the reason.

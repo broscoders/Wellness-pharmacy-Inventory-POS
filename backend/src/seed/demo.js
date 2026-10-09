@@ -1,8 +1,9 @@
 /**
  * DEMO DATA for testing and client demos. Adds ~110 medicines in 10 categories with batches, a few suppliers and customers.
  *
- *   npm run seed:demo             add demo data (safe to run again: existing items are skipped)
- *   npm run seed:demo -- --remove remove the demo data again (refused for items already used in bills/purchases)
+ *   npm run seed:demo                      medicines + suppliers + customers + 30 days of demo activity
+ *   npm run seed:demo -- --no-activity     only the medicines/suppliers/customers
+ *   npm run seed:demo -- --remove          remove ALL demo data again (medicines are kept if a real, non-demo bill uses them)
  *
  * Prices are only approximate and for demonstration. Demo medicines have barcodes starting with 8961000.
  */
@@ -19,6 +20,7 @@ const Customer = require('../models/Customer');
 const Sale = require('../models/Sale');
 const Purchase = require('../models/Purchase');
 const { applyMovement } = require('../services/stock.service');
+const { addActivity, removeActivity } = require('./demoActivity');
 
 const BARCODE_PREFIX = '8961000';
 const DEMO_NOTE = 'DEMO DATA';
@@ -176,9 +178,11 @@ async function add() {
   }
   console.log(`Demo data ready: ${created} new medicines, ${batchesMade} batches, ${SUPPLIERS.length} suppliers, ${CUSTOMERS.length} customers.`);
   console.log('Categories used:', Object.keys(cats).join(', '));
+  if (!process.argv.includes('--no-activity')) await addActivity({ log: console.log });
 }
 
 async function remove() {
+  await removeActivity({ log: console.log });
   const meds = await Medicine.find({ barcode: new RegExp(`^${BARCODE_PREFIX}`) }).select('_id name');
   const ids = meds.map((m) => m._id);
   const usedInSale = await Sale.exists({ 'items.medicine': { $in: ids } });
