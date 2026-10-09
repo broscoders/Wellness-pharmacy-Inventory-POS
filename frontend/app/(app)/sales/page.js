@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import { Printer, RotateCcw, Search, Ban } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -21,9 +21,11 @@ export default function SalesPage() {
   const [error, setError] = useState('');
   const [openId, setOpenId] = useState(null);
 
+  const seq = useRef(0); // only the newest request may update the screen
   const load = useCallback(async () => {
+    const reqId = ++seq.current;
     try {
-      const r = await api('/sales', { params: { search: q, status, page, limit: 15 } });
+      const r = await api('/sales', { params: { search: q, status, page, limit: 15 } }); if (reqId !== seq.current) return;
       setRows(r.data); setMeta(r.meta); setError('');
     } catch (e) { setError(e.message); }
   }, [q, status, page]);

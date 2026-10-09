@@ -30,7 +30,9 @@ app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 if (!env.isProd) app.use(morgan('dev'));
 
-app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: 300, standardHeaders: true, legacyHeaders: false }));
+// Generous on purpose: behind Vercel all staff share one proxy IP, and the POS search fires many small requests.
+// This is only a safety net against runaway scripts; real protection is login limiting + permissions.
+app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: 3000, standardHeaders: true, legacyHeaders: false }));
 
 // Ensure DB is connected before any route (works for both long-running server and serverless).
 app.use(async (req, res, next) => {

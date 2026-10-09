@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -23,9 +23,11 @@ export default function ResourcePage({
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(null);
 
+  const seq = useRef(0); // only the newest request may update the screen
   const load = useCallback(async () => {
+    const reqId = ++seq.current;
     try {
-      const r = await api(endpoint, { params: { search: q, page, limit: 15, ...extraParams } });
+      const r = await api(endpoint, { params: { search: q, page, limit: 15, ...extraParams } }); if (reqId !== seq.current) return;
       setRows(r.data); setMeta(r.meta); setError('');
     } catch (e) { setError(e.message); }
   }, [endpoint, q, page, extraParams]);

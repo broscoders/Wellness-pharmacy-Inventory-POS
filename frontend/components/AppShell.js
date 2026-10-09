@@ -2,9 +2,10 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, ShoppingCart, Receipt, Pill, LogOut, Menu, X, Boxes, Truck, Users, Building2, FileText, Wallet, BarChart3, Tags, UserCog, ScrollText } from 'lucide-react';
+import { KeyRound, LayoutDashboard, ShoppingCart, Receipt, Pill, LogOut, Menu, X, Boxes, Truck, Users, Building2, FileText, Wallet, BarChart3, Tags, UserCog, ScrollText } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Spinner } from '@/components/ui';
+import ChangePassword from '@/components/ChangePassword';
 
 // Only pages that exist are listed. Each item shows only if the user has the permission.
 const GROUPS = [
@@ -37,6 +38,7 @@ export default function AppShell({ children }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [pwd, setPwd] = useState(false);
 
   useEffect(() => { if (!loading && !user) router.replace('/login'); }, [loading, user, router]);
   useEffect(() => setOpen(false), [pathname]);
@@ -69,6 +71,7 @@ export default function AppShell({ children }) {
         {nav}
         <div className="border-t border-line p-3">
           <div className="px-3 pb-2"><p className="truncate font-medium">{user.name}</p><p className="text-xs capitalize text-muted">{user.role}</p></div>
+          <button onClick={() => setPwd(true)} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-muted hover:bg-mint hover:text-ink"><KeyRound className="h-[18px] w-[18px]" /> Change password</button>
           <button onClick={logout} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-muted hover:bg-mint hover:text-ink"><LogOut className="h-[18px] w-[18px]" /> Sign out</button>
         </div>
       </aside>
@@ -82,12 +85,14 @@ export default function AppShell({ children }) {
           <aside className="flex h-full w-64 flex-col bg-white" onClick={(e) => e.stopPropagation()}>
             <div className="flex h-14 items-center justify-between border-b border-line px-5 font-semibold text-pine-dark">Menu <button onClick={() => setOpen(false)}><X className="h-5 w-5" /></button></div>
             {nav}
+            <button onClick={() => { setOpen(false); setPwd(true); }} className="mx-3 flex items-center gap-3 rounded-md px-3 py-2 text-muted hover:bg-mint"><KeyRound className="h-[18px] w-[18px]" /> Change password</button>
             <button onClick={logout} className="m-3 flex items-center gap-3 rounded-md px-3 py-2 text-muted hover:bg-mint"><LogOut className="h-[18px] w-[18px]" /> Sign out</button>
           </aside>
         </div>
       )}
 
       <main className="min-w-0 p-4 lg:p-6">{children}</main>
+      {pwd && <ChangePassword onClose={() => setPwd(false)} />}
     </div>
   );
 }

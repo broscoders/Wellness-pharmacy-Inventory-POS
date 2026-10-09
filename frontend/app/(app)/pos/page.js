@@ -112,7 +112,7 @@ export default function PosPage() {
         <div className="space-y-4">
           <Card className="relative p-3">
             <Search className="absolute left-6 top-6 h-4 w-4 text-muted" />
-            <Input ref={searchRef} className="h-12 pl-9 text-base" placeholder="Scan barcode or type medicine name, then Enter" value={term} onChange={(e) => setTerm(e.target.value)} onKeyDown={onSearchKey} />
+            <Input ref={searchRef} className="h-12 pl-9 text-base" placeholder="Scan barcode / search medicine" value={term} onChange={(e) => setTerm(e.target.value)} onKeyDown={onSearchKey} />
             {results.length > 0 && (
               <ul className="absolute left-3 right-3 top-[60px] z-10 max-h-80 overflow-auto rounded-md border border-line bg-white shadow-lg">
                 {results.map((m) => (

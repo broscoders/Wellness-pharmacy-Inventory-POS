@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import { PackagePlus, Pencil, Plus, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -45,9 +45,11 @@ export default function MedicinesPage() {
   const [editing, setEditing] = useState(null); // null | 'new' | medicine
   const [stockFor, setStockFor] = useState(null);
 
+  const seq = useRef(0); // only the newest request may update the screen
   const load = useCallback(async () => {
+    const reqId = ++seq.current;
     try {
-      const r = await api('/medicines', { params: { search: q, page, limit: 15 } });
+      const r = await api('/medicines', { params: { search: q, page, limit: 15 } }); if (reqId !== seq.current) return;
       setRows(r.data); setMeta(r.meta); setError('');
     } catch (e) { setError(e.message); }
   }, [q, page]);
