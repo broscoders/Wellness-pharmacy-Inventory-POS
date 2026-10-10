@@ -1,13 +1,19 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Minus, Plus, Printer, Search, Trash2, X } from 'lucide-react';
+import { Clock, Minus, Pause, Plus, Printer, Search, Trash2, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { money, stockText } from '@/lib/format';
+import { dateTime, money, stockText } from '@/lib/format';
 import { baseQtyOfType, round2, sellPrice } from '@/lib/units';
 import { Badge, Button, Card, ErrorNote, Field, Input, Modal, PageHeader, Select } from '@/components/ui';
 import Receipt from '@/components/Receipt';
 import CustomerPicker from '@/components/CustomerPicker';
+
+// Held (parked) bills live in this browser only, so a held bill stays on the computer where it was held.
+const HELD_KEY = 'wp_held_bills_v1';
+const loadHeld = () => { try { return JSON.parse(localStorage.getItem(HELD_KEY) || '[]'); } catch { return []; } };
+const saveHeld = (list) => { try { localStorage.setItem(HELD_KEY, JSON.stringify(list.slice(0, 20))); } catch { /* storage full or blocked */ } };
+const NO_PAY = { cash: '', card: '', bank_transfer: '', credit: '' };
 
 const defaultUnit = (m) => (m.salePrice?.strip > 0 || m.stripsPerBox > 1 ? 'strip' : m.salePrice?.unit > 0 ? 'unit' : 'box');
 
@@ -26,6 +32,9 @@ export default function PosPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(null);
+  const [held, setHeld] = useState([]);
+  const [heldOpen, setHeldOpen] = useState(false);
+  useEffect(() => setHeld(loadHeld()), []);
 
   useEffect(() => searchRef.current?.focus(), [done]);
 
@@ -100,14 +109,60 @@ export default function PosPage() {
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   }
 
-  function reset() {
-    setDone(null); setCart([]); setCustomer(null); setDiscount(''); setPay({ cash: '', card: '', bank_transfer: '', credit: '' }); setRx(false); setRxLink(null); setError('');
+  function clearBill() {
+    setCart([]); setCustomer(null); setDiscount(''); setPay(NO_PAY); setRx(false); setRxLink(null); setError('');
   }
+  function reset() { setDone(null); clearBill(); }
+
+  const snapshot = () => ({ id: Date.now(), at: new Date().toISOString(), cart: cart.map((l) => ({ med: l.med, unitType: l.unitType, qty: l.qty })), saleType, customer, discount });
+
+  function holdBill() {
+    if (!cart.length || done) return;
+    const next = [snapshot(), ...held];
+    setHeld(next); saveHeld(next); clearBill();
+    searchRef.current?.focus();
+  }
+
+  async function resumeBill(h) {
+    setHeldOpen(false);
+    let next = held.filter((x) => x.id !== h.id);
+    if (cart.length) next = [snapshot(), ...next]; // the bill on screen is not lost, it is held instead
+    setHeld(next); saveHeld(next);
+    // prices and stock may have changed while the bill was waiting
+    const fresh = await Promise.all(h.cart.map((l) => api(`/medicines/${l.med._id}`).then((r) => r.data).catch(() => null)));
+    const lines = h.cart.map((l, i) => (fresh[i] && fresh[i].isActive ? { ...l, med: fresh[i] } : null)).filter(Boolean);
+    clearBill();
+    setCart(lines); setSaleType(h.saleType); setCustomer(h.customer); setDiscount(h.discount || '');
+    if (lines.length < h.cart.length) setError('Some medicines on this held bill are no longer available and were removed.');
+    searchRef.current?.focus();
+  }
+
+  function dropHeld(id) {
+    const next = held.filter((x) => x.id !== id);
+    setHeld(next); saveHeld(next);
+  }
+
+  // Keyboard shortcuts for the counter: F2 = search, F8 = hold bill, F9 = complete sale
+  useEffect(() => {
+    function onKey(e) {
+      if (done || heldOpen) return;
+      if (e.key === 'F2') { e.preventDefault(); searchRef.current?.focus(); }
+      else if (e.key === 'F8') { e.preventDefault(); holdBill(); }
+      else if (e.key === 'F9') { e.preventDefault(); if (canPay && !busy) checkout(); }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   return (
     <>
       <PageHeader title="POS / Billing" subtitle="Scan a barcode or search a medicine, then take payment"
-        actions={<Select value={saleType} onChange={(e) => setSaleType(e.target.value)} className="w-36"><option value="retail">Retail</option><option value="wholesale">Wholesale</option></Select>} />
+        actions={<>
+          <Button variant="secondary" size="sm" onClick={holdBill} disabled={!cart.length} title="Put this bill aside (F8)"><Pause className="h-4 w-4" /> Hold bill</Button>
+          <Button variant="secondary" size="sm" onClick={() => setHeldOpen(true)} disabled={!held.length} title="Bills put aside"><Clock className="h-4 w-4" /> Held ({held.length})</Button>
+          <Select value={saleType} onChange={(e) => setSaleType(e.target.value)} className="w-36"><option value="retail">Retail</option><option value="wholesale">Wholesale</option></Select>
+        </>} />
+      <p className="no-print -mt-3 mb-3 hidden text-xs text-muted lg:block"><kbd className="rounded border border-line bg-white px-1">F2</kbd> search &nbsp; <kbd className="rounded border border-line bg-white px-1">F8</kbd> hold bill &nbsp; <kbd className="rounded border border-line bg-white px-1">F9</kbd> complete sale</p>
       <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
         <div className="space-y-4">
           <Card className="relative p-3">
@@ -184,6 +239,22 @@ export default function PosPage() {
           <Button size="lg" className="w-full" disabled={!canPay} loading={busy} onClick={checkout}>Complete sale {total ? `- ${money(total)}` : ''}</Button>
         </Card>
       </div>
+
+      <Modal open={heldOpen} onClose={() => setHeldOpen(false)} title="Held bills" width="max-w-xl">
+        {held.length === 0 ? <p className="py-6 text-center text-muted">No held bills.</p> : (
+          <ul className="divide-y divide-line">
+            {held.map((h) => {
+              const total = round2(h.cart.reduce((sum, l) => sum + sellPrice(l.med, h.saleType, l.unitType) * l.qty, 0));
+              return (
+                <li key={h.id} className="flex items-center justify-between gap-3 py-3">
+                  <div className="min-w-0"><p className="font-medium">{h.customer?.name || 'Walk-in'} <span className="num ml-1 text-sm font-normal text-muted">about {money(total)}</span></p><p className="truncate text-xs text-muted">{dateTime(h.at)} | {h.cart.length} item(s): {h.cart.map((l) => l.med.name).join(', ')}</p></div>
+                  <div className="flex shrink-0 gap-2"><Button size="sm" onClick={() => resumeBill(h)}>Resume</Button><Button size="sm" variant="ghost" onClick={() => dropHeld(h.id)} aria-label="Delete held bill"><Trash2 className="h-4 w-4" /></Button></div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Modal>
 
       <Modal open={!!done} onClose={reset} title="Sale completed" width="max-w-sm"
         footer={<><Button variant="secondary" onClick={() => window.print()}><Printer className="h-4 w-4" /> Print receipt</Button><Button onClick={reset}>New sale</Button></>}>

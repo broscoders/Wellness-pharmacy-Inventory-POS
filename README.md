@@ -21,6 +21,15 @@ frontend/   Next.js (App Router) + Tailwind web app
 
 Remaining before go-live: deploy to Vercel, create the owner account on the production database, enter the real medicine list / opening stock, and train staff.
 
+## What the system can do
+
+- **Counter:** POS with barcode scanning, retail/wholesale prices, box/strip/unit selling, discounts, cash/card/bank/udhaar, change, receipt printing (80mm thermal or A4), hold/resume bills (F8), keyboard shortcuts (F2 search, F9 complete), returns, invoice cancellation.
+- **Stock:** batches with expiry, FEFO (earliest expiry sold first, expired never sold), 30/60/90-day alerts, low/out-of-stock, **reorder list grouped by supplier (print/CSV)**, stock adjustments with reason, full stock history, medicine detail view with margin.
+- **Money:** purchases with partial payment, supplier ledger and payments, customer udhaar ledger and payments, printable account statements, expenses (void, never delete), profit and loss.
+- **Owner insight:** dashboard with sales/profit chart and best sellers, reports (sales, profit, **products: best sellers, category-wise, slow moving stock**, inventory, suppliers, customers) with CSV export, audit log.
+- **Setup:** shop name/address/phone/license printed on receipts (Shop settings), **bulk import of medicines + opening stock from CSV/Excel-saved file**, staff roles, change password.
+- **Safety:** go-live clean-up (`reset:data`), **backup and restore** scripts.
+
 ## Roles
 
 | Role | Can do |
@@ -58,6 +67,23 @@ npm run seed:demo -- --no-activity   # only medicines, suppliers, customers
 npm run seed:demo -- --remove        # remove all demo data again
 ```
 The passwords of the demo staff accounts are printed once in the terminal when they are created (they use the e-mail domain `@demo.wellness.local`). Prices are approximate. Demo medicines have barcodes starting with `8961000` (e.g. `8961000000001` = Panadol 500mg) so you can test the barcode box on the POS screen.
+
+### Moving your old register / software data in
+Open **Medicines, Import from file**. Download the template, fill it in Excel (or paste your list), save as CSV and upload it. The screen first checks the file and lists every problem row (nothing is saved), then imports. Importing the same file again never doubles the stock. Dates can be written like `2028-06-30`, `30/06/2028`, `06/2028` or `Jun 2028`.
+
+### Backup and restore
+Atlas' free plan has no automatic backups. From your computer:
+
+```powershell
+cd backend
+npm run backup           # saves everything into backups\<database>-<date>\  (keep it private: it has staff password hashes)
+```
+To restore (this REPLACES the current data, so it needs the same two safety confirmations as `reset:data`):
+```powershell
+$env:CONFIRM_DB_NAME = "wellness_pharmacy_prod"
+npm run restore -- backups\wellness_pharmacy_prod-2026-10-10-21-00-00 --yes
+```
+A full backup -> wipe -> restore round trip was tested: every collection came back identical.
 
 ### Clean the database before real use (go-live)
 `reset:data` deletes **all** business data (medicines, stock, sales, purchases, customers, suppliers, ledgers, prescriptions, expenses, audit log, invoice counters) and the demo staff. Real user accounts and categories are kept. It refuses to run unless you pass `--yes` **and** set `CONFIRM_DB_NAME` to the exact database name it is connected to:
