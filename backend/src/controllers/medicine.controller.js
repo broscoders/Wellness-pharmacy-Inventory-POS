@@ -46,6 +46,8 @@ const list = asyncHandler(async (req, res) => {
     filter.$or = [{ name: rx }, { genericName: rx }, { barcode: rx }, { manufacturer: rx }];
   }
   if (req.query.category) filter.category = req.query.category;
+  if (req.query.manufacturer) filter.manufacturer = new RegExp(`^${escapeRegex(req.query.manufacturer)}$`, 'i');
+  if (req.query.supplier) filter.supplier = req.query.supplier;
   if (req.query.active === 'true') filter.isActive = true;
   if (req.query.active === 'false') filter.isActive = false;
 
@@ -55,6 +57,12 @@ const list = asyncHandler(async (req, res) => {
   ]);
   const stockMap = await stockByMedicine(meds.map((m) => m._id));
   res.json({ success: true, data: meds.map((m) => decorateMedicine(m, stockMap)), meta: pageMeta(total, page, limit) });
+});
+
+// Values for the filter drop-downs on the medicines page.
+const filters = asyncHandler(async (req, res) => {
+  const [manufacturers, categories] = await Promise.all([Medicine.distinct('manufacturer', { isActive: true }), require('../models/Category').find({ isActive: true }).sort({ name: 1 }).select('name')]);
+  res.json({ success: true, manufacturers: manufacturers.filter(Boolean).sort((a, b) => a.localeCompare(b)), categories });
 });
 
 const getOne = asyncHandler(async (req, res) => {
@@ -124,4 +132,4 @@ const importRows = asyncHandler(async (req, res) => {
   res.json({ success: true, dryRun: req.body.dryRun, ...result, rows: result.rows.filter((r) => r.status !== 'create' || r.warnings.length || r.messages.length).slice(0, 500) });
 });
 
-module.exports = { list, getOne, byBarcode, create, update, archive, importRows, createSchema, updateSchema, importSchema, objectId };
+module.exports = { list, filters, getOne, byBarcode, create, update, archive, importRows, createSchema, updateSchema, importSchema, objectId };

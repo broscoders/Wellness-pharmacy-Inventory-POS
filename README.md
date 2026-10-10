@@ -175,5 +175,6 @@ On real MongoDB/Atlas `fefo.test.js` also checks that two simultaneous sales can
 | Frontend shows network errors for `/api` | `BACKEND_URL` wrong or missing at build time. Fix and rebuild. |
 | `querySrv ETIMEOUT` | DNS problem on your network. Add `DNS_SERVERS=8.8.8.8,1.1.1.1` to `backend/.env`, or change your PC's DNS to 8.8.8.8, or use Atlas' non-SRV (`mongodb://...`) connection string, or try a mobile hotspot. |
 | Receipt prints blank / extra pages | Use the Print button in the app (not Ctrl+P on another page). For thermal printers choose the printer's 80mm roll paper in the print dialog and set margins to None. |
+| `MONGODB_URI has no database name` | The connection string must name the database after the host: `...mongodb.net/wellness_pharmacy?retryWrites=true&w=majority`. Without a name MongoDB silently uses a database called `test` (that is how a second, unwanted database appears in Atlas), so the backend now refuses to start. |
 | `MongoDB connection FAILED` | Check Atlas Network Access, DB user password (URL-encode special characters), and that the URI has a database name. |
 | `npm install` errors on Windows (`TAR_ENTRY_ERROR`, `ENOTEMPTY`) | Keep the project outside OneDrive/Desktop (e.g. `C:\Projects`) and run `npm cache clean --force`. |

@@ -44,6 +44,9 @@ export default function MedicinesPage() {
   const [q, setQ] = useState('');
   const [error, setError] = useState('');
   const [categories, setCategories] = useState([]);
+  const [manufacturers, setManufacturers] = useState([]);
+  const [fCategory, setFCategory] = useState('');
+  const [fManufacturer, setFManufacturer] = useState('');
   const [editing, setEditing] = useState(null); // null | 'new' | medicine
   const [stockFor, setStockFor] = useState(null);
   const [detailId, setDetailId] = useState(null);
@@ -52,13 +55,13 @@ export default function MedicinesPage() {
   const load = useCallback(async () => {
     const reqId = ++seq.current;
     try {
-      const r = await api('/medicines', { params: { search: q, page, limit: 15 } }); if (reqId !== seq.current) return;
+      const r = await api('/medicines', { params: { search: q, category: fCategory, manufacturer: fManufacturer, page, limit: 15 } }); if (reqId !== seq.current) return;
       setRows(r.data); setMeta(r.meta); setError('');
     } catch (e) { setError(e.message); }
-  }, [q, page]);
+  }, [q, page, fCategory, fManufacturer]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { api('/categories', { params: { limit: 100, active: 'true' } }).then((r) => setCategories(r.data)).catch(() => {}); }, []);
+  useEffect(() => { api('/medicines/filters').then((r) => { setCategories(r.categories); setManufacturers(r.manufacturers); }).catch(() => {}); }, []);
   useEffect(() => { const t = setTimeout(() => { setPage(1); setQ(search); }, 300); return () => clearTimeout(t); }, [search]);
 
   const canManage = can('medicines:manage');
@@ -68,18 +71,21 @@ export default function MedicinesPage() {
       <PageHeader title="Medicines" subtitle="Catalogue with live stock, batches and prices"
         actions={canManage && <>{can('inventory:manage') && <Link href="/medicines/import" className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 font-medium hover:bg-mint"><FileUp className="h-4 w-4" /> Import from file</Link>}<Button onClick={() => setEditing('new')}><Plus className="h-4 w-4" /> Add medicine</Button></>} />
       <Card>
-        <div className="border-b border-line p-3">
-          <div className="relative max-w-sm">
+        <div className="flex flex-wrap items-center gap-3 border-b border-line p-3">
+          <div className="relative w-full max-w-sm">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted" />
             <Input className="pl-9" placeholder="Search name, generic, barcode..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
+          <Select className="w-44" value={fCategory} onChange={(e) => { setPage(1); setFCategory(e.target.value); }} aria-label="Category"><option value="">All categories</option>{categories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}</Select>
+          <Select className="w-48" value={fManufacturer} onChange={(e) => { setPage(1); setFManufacturer(e.target.value); }} aria-label="Manufacturer"><option value="">All manufacturers</option>{manufacturers.map((m) => <option key={m} value={m}>{m}</option>)}</Select>
+          {(fCategory || fManufacturer) && <Button variant="ghost" size="sm" onClick={() => { setPage(1); setFCategory(''); setFManufacturer(''); }}>Clear filters</Button>}
         </div>
         <ErrorNote error={error} />
         {!rows ? <Spinner /> : rows.length === 0 ? <Empty>No medicines found.</Empty> : (
           <Table head={['Medicine', 'Category', { label: 'Sale price (box / strip / unit)', right: true }, { label: 'In stock', right: true }, 'Status', '']}>
             {rows.map((m) => (
               <tr key={m._id} className={m.isActive ? '' : 'opacity-50'}>
-                <td className="px-3 py-2"><button className="text-left font-medium text-pine-dark hover:underline" onClick={() => setDetailId(m._id)}>{m.name}</button><p className="text-xs text-muted">{m.genericName || '-'}{m.barcode ? ` | ${m.barcode}` : ''}</p></td>
+                <td className="px-3 py-2"><button className="text-left font-medium text-pine-dark hover:underline" onClick={() => setDetailId(m._id)}>{m.name}</button><p className="text-xs text-muted">{m.genericName || '-'}{m.manufacturer ? ` | ${m.manufacturer}` : ''}{m.barcode ? ` | ${m.barcode}` : ''}</p>{m.supplier?.name && <p className="text-xs text-muted">Supplier: {m.supplier.name}</p>}</td>
                 <td className="px-3 py-2">{m.category?.name || '-'}</td>
                 <td className="num px-3 py-2 text-right">{[m.salePrice?.box, m.salePrice?.strip, m.salePrice?.unit].map((p) => (p ? money(p) : '-')).join(' / ')}</td>
                 <td className="num px-3 py-2 text-right">{stockText(m.stock.display)}<p className="text-xs text-muted">{m.stock.sellable} units</p></td>
@@ -209,7 +215,7 @@ function MedicineDetail({ id, onClose }) {
     <Modal open onClose={onClose} title={m.name} width="max-w-4xl">
       <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-muted">
         {m.genericName && <span>{m.genericName}</span>}{m.manufacturer && <span>| {m.manufacturer}</span>}{m.category?.name && <Badge>{m.category.name}</Badge>}
-        {m.requiresPrescription && <Badge tone="warn">Prescription (Rx)</Badge>}{m.barcode && <span className="num">| Barcode {m.barcode}</span>}{!m.isActive && <Badge tone="bad">Inactive</Badge>}
+        {m.supplier?.name && <span>| Supplier: {m.supplier.name}</span>}{m.requiresPrescription && <Badge tone="warn">Prescription (Rx)</Badge>}{m.barcode && <span className="num">| Barcode {m.barcode}</span>}{!m.isActive && <Badge tone="bad">Inactive</Badge>}
       </div>
       <div className="mb-5 grid gap-3 sm:grid-cols-4">
         <div className="rounded-md border border-line px-3 py-2"><p className="text-xs text-muted">Pack</p><p className="font-medium">1 box = {m.stripsPerBox} strip x {m.unitsPerStrip}</p><p className="text-xs text-muted">{upb} units per box</p></div>

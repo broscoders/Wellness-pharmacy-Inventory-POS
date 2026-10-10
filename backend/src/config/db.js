@@ -20,6 +20,12 @@ async function connectDB() {
   }
   try {
     cached.conn = await cached.promise;
+    // A connection string WITHOUT a database name silently uses MongoDB's default database called "test".
+    // That is how stray data ends up in a second database, so refuse it with a clear message.
+    if (cached.conn.connection.name === 'test' && process.env.ALLOW_TEST_DB !== '1') {
+      await mongoose.disconnect();
+      throw new Error('MONGODB_URI has no database name (MongoDB would use its default "test" database). Put the name after the host, e.g. ...mongodb.net/wellness_pharmacy?retryWrites=true&w=majority');
+    }
     if (!cached.logged) {
       cached.logged = true;
       const { host, name } = cached.conn.connection;
