@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { FileUp, PackagePlus, Pencil, Plus, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { money, stockText, dateOnly } from '@/lib/format';
+import { money, stockText, dateOnly, dateTime } from '@/lib/format';
+import { unitsPerBox, sellPrice } from '@/lib/units';
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table, Textarea } from '@/components/ui';
 
 const emptyForm = {
@@ -45,6 +46,7 @@ export default function MedicinesPage() {
   const [categories, setCategories] = useState([]);
   const [editing, setEditing] = useState(null); // null | 'new' | medicine
   const [stockFor, setStockFor] = useState(null);
+  const [detailId, setDetailId] = useState(null);
 
   const seq = useRef(0); // only the newest request may update the screen
   const load = useCallback(async () => {
@@ -77,7 +79,7 @@ export default function MedicinesPage() {
           <Table head={['Medicine', 'Category', { label: 'Sale price (box / strip / unit)', right: true }, { label: 'In stock', right: true }, 'Status', '']}>
             {rows.map((m) => (
               <tr key={m._id} className={m.isActive ? '' : 'opacity-50'}>
-                <td className="px-3 py-2"><p className="font-medium">{m.name}</p><p className="text-xs text-muted">{m.genericName || '-'}{m.barcode ? ` | ${m.barcode}` : ''}</p></td>
+                <td className="px-3 py-2"><button className="text-left font-medium text-pine-dark hover:underline" onClick={() => setDetailId(m._id)}>{m.name}</button><p className="text-xs text-muted">{m.genericName || '-'}{m.barcode ? ` | ${m.barcode}` : ''}</p></td>
                 <td className="px-3 py-2">{m.category?.name || '-'}</td>
                 <td className="num px-3 py-2 text-right">{[m.salePrice?.box, m.salePrice?.strip, m.salePrice?.unit].map((p) => (p ? money(p) : '-')).join(' / ')}</td>
                 <td className="num px-3 py-2 text-right">{stockText(m.stock.display)}<p className="text-xs text-muted">{m.stock.sellable} units</p></td>
@@ -103,6 +105,7 @@ export default function MedicinesPage() {
       </Card>
 
       {editing && <MedicineForm medicine={editing === 'new' ? null : editing} categories={categories} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+      {detailId && <MedicineDetail id={detailId} onClose={() => setDetailId(null)} />}
       {stockFor && <StockForm medicine={stockFor} onClose={() => setStockFor(null)} onSaved={() => { setStockFor(null); load(); }} />}
     </>
   );
@@ -179,6 +182,71 @@ function StockForm({ medicine, onClose, onSaved }) {
         <Field label="Loose units"><Input type="number" min="0" value={f.unit} onChange={set('unit')} /></Field>
         <Field label="Note"><Input value={f.reason} onChange={set('reason')} /></Field>
       </div>
+    </Modal>
+  );
+}
+
+const MOVE = { opening: 'Opening stock', purchase: 'Purchase', sale: 'Sale', sale_return: 'Customer return', purchase_return: 'Returned to supplier', adjustment: 'Adjustment', expired_writeoff: 'Expired write-off' };
+
+function MedicineDetail({ id, onClose }) {
+  const [m, setM] = useState(null);
+  const [batches, setBatches] = useState([]);
+  const [moves, setMoves] = useState([]);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    Promise.all([api(`/medicines/${id}`), api('/inventory/batches', { params: { medicine: id, inStock: 'false', limit: 50 } }), api('/inventory/movements', { params: { medicine: id, limit: 10 } })])
+      .then(([a, b, c]) => { setM(a.data); setBatches(b.data); setMoves(c.data); }).catch((e) => setErr(e.message));
+  }, [id]);
+
+  if (!m) return <Modal open onClose={onClose} title="Medicine"><ErrorNote error={err} />{!err && <Spinner />}</Modal>;
+  const upb = unitsPerBox(m);
+  const retailBox = sellPrice(m, 'retail', 'box');
+  const margin = retailBox > 0 && m.purchasePrice > 0 ? Math.round(((retailBox - m.purchasePrice) / retailBox) * 1000) / 10 : null;
+  const stockValue = batches.filter((b) => b.status !== 'expired').reduce((s, b) => s + ((b.purchasePricePerBox || m.purchasePrice || 0) / upb) * b.quantity, 0);
+
+  return (
+    <Modal open onClose={onClose} title={m.name} width="max-w-4xl">
+      <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-muted">
+        {m.genericName && <span>{m.genericName}</span>}{m.manufacturer && <span>| {m.manufacturer}</span>}{m.category?.name && <Badge>{m.category.name}</Badge>}
+        {m.requiresPrescription && <Badge tone="warn">Prescription (Rx)</Badge>}{m.barcode && <span className="num">| Barcode {m.barcode}</span>}{!m.isActive && <Badge tone="bad">Inactive</Badge>}
+      </div>
+      <div className="mb-5 grid gap-3 sm:grid-cols-4">
+        <div className="rounded-md border border-line px-3 py-2"><p className="text-xs text-muted">Pack</p><p className="font-medium">1 box = {m.stripsPerBox} strip x {m.unitsPerStrip}</p><p className="text-xs text-muted">{upb} units per box</p></div>
+        <div className="rounded-md border border-line px-3 py-2"><p className="text-xs text-muted">Sellable stock</p><p className="num font-medium">{stockText(m.stock.display)}</p><p className="text-xs text-muted">{m.stock.sellable} units{m.stock.expired ? `, ${m.stock.expired} expired` : ''}</p></div>
+        <div className="rounded-md border border-line px-3 py-2"><p className="text-xs text-muted">Stock value (at cost)</p><p className="num font-medium">{money(Math.round(stockValue))}</p><p className="text-xs text-muted">Minimum level {m.minStockLevel} units</p></div>
+        <div className="rounded-md border border-line px-3 py-2"><p className="text-xs text-muted">Margin on box (retail)</p><p className={`num font-medium ${margin !== null && margin < 8 ? 'text-danger' : ''}`}>{margin === null ? '-' : `${margin}%`}</p><p className="text-xs text-muted">Cost {money(m.purchasePrice)} / sale {money(retailBox)}</p></div>
+      </div>
+
+      <h3 className="mb-1 font-semibold">Prices</h3>
+      <Table head={['', { label: 'Box', right: true }, { label: 'Strip', right: true }, { label: 'Unit', right: true }]}>
+        <tr><td className="px-3 py-2">Retail</td>{['box', 'strip', 'unit'].map((k) => <td key={k} className="num px-3 py-2 text-right">{m.salePrice?.[k] ? money(m.salePrice[k]) : '-'}</td>)}</tr>
+        <tr><td className="px-3 py-2">Wholesale</td>{['box', 'strip', 'unit'].map((k) => <td key={k} className="num px-3 py-2 text-right">{m.wholesalePrice?.[k] ? money(m.wholesalePrice[k]) : '-'}</td>)}</tr>
+        <tr><td className="px-3 py-2">Purchase (per box)</td><td className="num px-3 py-2 text-right">{money(m.purchasePrice)}</td><td /><td /></tr>
+      </Table>
+
+      <h3 className="mb-1 mt-5 font-semibold">Batches</h3>
+      {batches.length === 0 ? <p className="text-sm text-muted">No batches yet.</p> : (
+        <Table head={['Batch', 'Expiry', { label: 'Quantity', right: true }, { label: 'Cost / box', right: true }]}>
+          {batches.map((b) => (
+            <tr key={b._id} className={b.quantity === 0 ? 'opacity-50' : ''}>
+              <td className="num px-3 py-2 font-medium">{b.batchNumber}</td>
+              <td className="px-3 py-2"><span className="num mr-2">{dateOnly(b.expiryDate)}</span>{b.status === 'expired' ? <Badge tone="bad">Expired</Badge> : b.status === 'expiring_30' ? <Badge tone="bad">{b.daysLeft} days left</Badge> : b.status === 'ok' ? <Badge tone="good">{b.daysLeft} days</Badge> : <Badge tone="warn">{b.daysLeft} days left</Badge>}</td>
+              <td className="num px-3 py-2 text-right">{stockText(b.display)} <span className="text-xs text-muted">({b.quantity})</span></td><td className="num px-3 py-2 text-right">{money(b.purchasePricePerBox)}</td>
+            </tr>
+          ))}
+        </Table>
+      )}
+
+      <h3 className="mb-1 mt-5 font-semibold">Recent stock movements</h3>
+      {moves.length === 0 ? <p className="text-sm text-muted">No movements yet.</p> : (
+        <Table head={['When', 'Type', 'Batch', { label: 'Change', right: true }, { label: 'Balance', right: true }, 'By']}>
+          {moves.map((x) => (
+            <tr key={x._id}><td className="px-3 py-2 text-muted">{dateTime(x.createdAt)}</td><td className="px-3 py-2">{MOVE[x.type] || x.type}</td><td className="num px-3 py-2">{x.batch?.batchNumber}</td>
+              <td className={`num px-3 py-2 text-right font-medium ${x.quantity > 0 ? 'text-pine-dark' : 'text-danger'}`}>{x.quantity > 0 ? '+' : ''}{x.quantity}</td><td className="num px-3 py-2 text-right">{x.balanceAfter}</td><td className="px-3 py-2">{x.user?.name || '-'}</td></tr>
+          ))}
+        </Table>
+      )}
     </Modal>
   );
 }

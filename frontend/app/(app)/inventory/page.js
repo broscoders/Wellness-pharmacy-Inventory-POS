@@ -1,12 +1,14 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Clock, PackageX, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, Clock, Download, PackageX, Printer, SlidersHorizontal } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { dateOnly, dateTime, money, stockText } from '@/lib/format';
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table } from '@/components/ui';
+import PrintDoc from '@/components/PrintDoc';
+import { downloadCsv } from '@/lib/csv';
 
-const TABS = [['batches', 'Batches & expiry'], ['alerts', 'Alerts'], ['movements', 'Stock history']];
+const TABS = [['batches', 'Batches & expiry'], ['alerts', 'Alerts'], ['reorder', 'Reorder list'], ['movements', 'Stock history']];
 
 export default function InventoryPage() {
   const [tab, setTab] = useState('batches');
@@ -20,6 +22,7 @@ export default function InventoryPage() {
       </div>
       {tab === 'batches' && <Batches />}
       {tab === 'alerts' && <Alerts />}
+      {tab === 'reorder' && <Reorder />}
       {tab === 'movements' && <Movements />}
     </>
   );
@@ -172,5 +175,50 @@ function Movements() {
           <div className="flex gap-2"><Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button><Button variant="secondary" size="sm" disabled={page >= meta.pages} onClick={() => setPage(page + 1)}>Next</Button></div></div>
       )}
     </Card>
+  );
+}
+
+function Reorder() {
+  const [d, setD] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => { api('/inventory/reorder').then(setD).catch((e) => setError(e.message)); }, []);
+  if (error) return <ErrorNote error={error} />;
+  if (!d) return <Spinner />;
+  const flat = d.data.flatMap((g) => g.items.map((i) => ({ supplier: g.supplier, name: i.name, available: i.available, min: i.minStockLevel, boxes: i.suggestedBoxes, cost: i.estCost })));
+  const date = new Date().toLocaleDateString('en-GB');
+
+  return (
+    <>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted">Everything low or out of stock, grouped by supplier. Suggested = enough to reach twice the minimum level, in whole boxes. {d.totals.items} items, estimated cost <b className="text-ink">{money(d.totals.estCost)}</b>.</p>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="sm" disabled={!flat.length} onClick={() => downloadCsv(`reorder-${new Date().toISOString().slice(0, 10)}.csv`, [{ key: 'supplier', label: 'Supplier' }, { key: 'name', label: 'Medicine' }, { key: 'available', label: 'In stock (units)' }, { key: 'min', label: 'Minimum level' }, { key: 'boxes', label: 'Suggested boxes' }, { key: 'cost', label: 'Estimated cost' }], flat)}><Download className="h-4 w-4" /> CSV</Button>
+          <Button size="sm" disabled={!flat.length} onClick={() => window.print()}><Printer className="h-4 w-4" /> Print list</Button>
+        </div>
+      </div>
+      {d.data.length === 0 ? <Card><Empty>Nothing to reorder. All medicines are above their minimum level.</Empty></Card> : d.data.map((g) => (
+        <Card key={g.supplier} className="mb-4">
+          <div className="flex items-center justify-between border-b border-line px-4 py-3"><h2 className="font-semibold">{g.supplier}{g.phone ? <span className="ml-2 text-sm font-normal text-muted">{g.phone}</span> : null}</h2><span className="num text-sm">Estimated {money(g.total)}</span></div>
+          <Table head={['Medicine', { label: 'In stock', right: true }, { label: 'Minimum', right: true }, { label: 'Order (boxes)', right: true }, { label: 'Est. cost', right: true }]}>
+            {g.items.map((i) => (
+              <tr key={i.medicineId}>
+                <td className="px-3 py-2 font-medium">{i.name} {i.outOfStock && <Badge tone="bad">Out of stock</Badge>}</td>
+                <td className="num px-3 py-2 text-right">{stockText(i.availableDisplay)}</td><td className="num px-3 py-2 text-right">{i.minStockLevel}</td>
+                <td className="num px-3 py-2 text-right font-semibold">{i.suggestedBoxes} <span className="text-xs font-normal text-muted">({i.suggestedBoxes * i.unitsPerBox} units)</span></td><td className="num px-3 py-2 text-right">{money(i.estCost)}</td>
+              </tr>
+            ))}
+          </Table>
+        </Card>
+      ))}
+      <PrintDoc title="Reorder list" subtitle={`${date} | ${d.totals.items} items | estimated cost ${money(d.totals.estCost)}`}>
+        {d.data.map((g) => (
+          <div key={g.supplier}>
+            <p className="mt-2 font-bold">{g.supplier}{g.phone ? ` (${g.phone})` : ''}</p>
+            <table><thead><tr><th>Medicine</th><th className="r">In stock</th><th className="r">Minimum</th><th className="r">Order (boxes)</th><th className="r">Est. cost</th></tr></thead>
+              <tbody>{g.items.map((i) => <tr key={i.medicineId}><td>{i.name}</td><td className="r">{stockText(i.availableDisplay)}</td><td className="r">{i.minStockLevel}</td><td className="r">{i.suggestedBoxes}</td><td className="r">{money(i.estCost)}</td></tr>)}</tbody></table>
+          </div>
+        ))}
+      </PrintDoc>
+    </>
   );
 }

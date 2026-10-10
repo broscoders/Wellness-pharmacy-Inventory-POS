@@ -8,6 +8,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { round2, dayRange } = require('../utils/money');
 const { unitsPerBox } = require('../utils/units');
 const { getAlerts } = require('../services/inventory.service');
+const { salesByDay, productStats } = require('../services/analytics.service');
 
 const sum = (arr, f) => arr.reduce((s, x) => s + f(x), 0);
 
@@ -79,4 +80,15 @@ const summary = asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 });
 
-module.exports = { summary };
+// Owner-only charts: net sales + profit per day, and best sellers of the last 30 days.
+const trends = asyncHandler(async (req, res) => {
+  const days = Math.min(Math.max(parseInt(req.query.days, 10) || 14, 7), 60);
+  const today = dayRange().start;
+  const start = new Date(today.getTime() - (days - 1) * 86400000);
+  const end = new Date(today.getTime() + 86400000);
+  const [daily, products] = await Promise.all([salesByDay(start, end), productStats(new Date(today.getTime() - 29 * 86400000), end)]);
+  const top = products.sort((a, b) => b.revenue - a.revenue).slice(0, 6).map(({ name, units, revenue, profit }) => ({ name, units, revenue, profit }));
+  res.json({ success: true, data: { days: daily, topMedicines: top } });
+});
+
+module.exports = { summary, trends };

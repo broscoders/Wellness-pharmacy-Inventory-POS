@@ -139,4 +139,29 @@ const summary = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { totalUnits, stockValue: Math.round(stockValue), expiredStockValue: Math.round(expiredValue), batchCount: batches.length } });
 });
 
-module.exports = { createBatch, listBatches, adjust, movements, alerts, summary, createBatchSchema, adjustSchema };
+// Shopping list: everything low or out of stock, grouped by the supplier it is normally bought from.
+// Suggested quantity = enough to reach TWICE the minimum level, at least one full box, rounded up to whole boxes.
+const reorder = asyncHandler(async (req, res) => {
+  const { data } = await getAlerts();
+  const rows = [...data.outOfStock, ...data.lowStock];
+  const meds = await Medicine.find({ _id: { $in: rows.map((r) => r._id) } }).populate('supplier', 'name phone').lean();
+  const byId = new Map(meds.map((m) => [String(m._id), m]));
+  const groups = new Map();
+  for (const r of rows) {
+    const m = byId.get(String(r._id)); if (!m) continue;
+    const upb = unitsPerBox(m);
+    const need = Math.max((m.minStockLevel || 0) * 2 - r.available, upb);
+    const boxes = Math.ceil(need / upb);
+    const name = m.supplier?.name || 'No supplier set';
+    const g = groups.get(name) || { supplier: name, phone: m.supplier?.phone || '', items: [], total: 0 };
+    const cost = Math.round(boxes * (m.purchasePrice || 0));
+    g.items.push({ medicineId: m._id, name: m.name, genericName: m.genericName, available: r.available, availableDisplay: r.display, minStockLevel: m.minStockLevel, suggestedBoxes: boxes, unitsPerBox: upb, estCost: cost, outOfStock: r.available === 0 });
+    g.total += cost;
+    groups.set(name, g);
+  }
+  const list = [...groups.values()].sort((a, b) => a.supplier.localeCompare(b.supplier));
+  list.forEach((g) => g.items.sort((a, b) => a.name.localeCompare(b.name)));
+  res.json({ success: true, data: list, totals: { items: rows.length, estCost: list.reduce((s, g) => s + g.total, 0) } });
+});
+
+module.exports = { reorder, createBatch, listBatches, adjust, movements, alerts, summary, createBatchSchema, adjustSchema };

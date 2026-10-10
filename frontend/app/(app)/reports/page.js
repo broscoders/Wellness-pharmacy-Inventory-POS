@@ -5,8 +5,9 @@ import { api } from '@/lib/api';
 import { downloadCsv } from '@/lib/csv';
 import { money, stockText, dateOnly } from '@/lib/format';
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, PageHeader, Select, Spinner, Table } from '@/components/ui';
+import { BarList } from '@/components/Charts';
 
-const TABS = [['sales', 'Sales'], ['profit', 'Profit & loss'], ['inventory', 'Inventory'], ['suppliers', 'Suppliers'], ['customers', 'Customers']];
+const TABS = [['sales', 'Sales'], ['profit', 'Profit & loss'], ['products', 'Products'], ['inventory', 'Inventory'], ['suppliers', 'Suppliers'], ['customers', 'Customers']];
 const monthStart = () => { const d = new Date(); return new Date(Date.UTC(d.getFullYear(), d.getMonth(), 1)).toISOString().slice(0, 10); };
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -25,20 +26,21 @@ export default function ReportsPage() {
   const [from, setFrom] = useState(monthStart());
   const [to, setTo] = useState(today());
   const [groupBy, setGroupBy] = useState('day');
+  const [slowDays, setSlowDays] = useState(60);
   const [loaded, setLoaded] = useState(null); // { key, res } - data is tagged with the request it belongs to
   const [error, setError] = useState('');
-  const key = `${tab}|${from}|${to}|${tab === 'sales' ? groupBy : ''}`;
+  const key = `${tab}|${from}|${to}|${tab === 'sales' ? groupBy : ''}|${tab === 'products' ? slowDays : ''}`;
   // Never render another tab's data in this tab's layout (they have different shapes).
   const d = loaded?.key === key ? loaded.res : null;
 
   useEffect(() => {
     let alive = true;
     setError('');
-    api(`/reports/${tab}`, { params: { from, to, groupBy: tab === 'sales' ? groupBy : undefined } })
+    api(`/reports/${tab}`, { params: { from, to, groupBy: tab === 'sales' ? groupBy : undefined, slowDays: tab === 'products' ? slowDays : undefined } })
       .then((res) => { if (alive) setLoaded({ key, res }); })
       .catch((e) => { if (alive) setError(e.message); });
     return () => { alive = false; };
-  }, [key, tab, from, to, groupBy]);
+  }, [key, tab, from, to, groupBy, slowDays]);
 
   const csv = (name, cols, rows) => (
     <Button variant="secondary" size="sm" disabled={!rows?.length} onClick={() => downloadCsv(`${name}-${from}-to-${to}.csv`, cols, rows)}><Download className="h-4 w-4" /> Export CSV</Button>
@@ -54,6 +56,7 @@ export default function ReportsPage() {
         <div className="mb-4 flex flex-wrap items-end gap-3">
           <Field label="From"><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
           <Field label="To"><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
+          {tab === 'products' && <Field label="Slow moving = no sale for"><Select value={slowDays} onChange={(e) => setSlowDays(Number(e.target.value))}>{[30, 60, 90, 180].map((n) => <option key={n} value={n}>{n} days</option>)}</Select></Field>}
           {tab === 'sales' && <Field label="Group by"><Select value={groupBy} onChange={(e) => setGroupBy(e.target.value)}><option value="day">Day</option><option value="week">Week</option><option value="month">Month</option></Select></Field>}
         </div>
       )}
@@ -89,6 +92,34 @@ export default function ReportsPage() {
           {Object.keys(d.data.expensesByCategory).length > 0 && <div className="border-t border-line px-5 py-3"><p className="mb-1 text-sm font-medium">Expenses by category</p><div className="flex flex-wrap gap-2">{Object.entries(d.data.expensesByCategory).map(([k, v]) => <Badge key={k}><span className="capitalize">{k}</span>: {money(v)}</Badge>)}</div></div>}
           <p className="border-t border-line px-5 py-3 text-xs text-muted">Purchases made in this period (information only): {money(d.data.purchasesMade)}. Profit is estimated: cost of goods sold uses the purchase cost of the exact batches sold.</p>
         </Card>
+      )}
+
+      {d && tab === 'products' && (
+        <div className="space-y-4">
+          <Card>
+            <Summary items={[['Different medicines sold', d.totals.medicinesSold], ['Revenue', money(d.totals.revenue)], ['Gross profit', money(d.totals.profit)], [`Slow moving stock (${slowDays}+ days)`, money(d.totals.slowMovingValue), d.totals.slowMovingValue ? 'bad' : undefined]]} />
+          </Card>
+          <Card>
+            <div className="flex items-center justify-between px-4 pt-3"><h2 className="font-semibold">Best sellers (by revenue, top 30)</h2>{csv('best-sellers', [{ key: 'name', label: 'Medicine' }, { key: 'category', label: 'Category' }, { key: 'units', label: 'Units sold' }, { key: 'revenue', label: 'Revenue' }, { key: 'profit', label: 'Gross profit' }, { key: 'margin', label: 'Margin %' }], d.data.top)}</div>
+            {d.data.top.length === 0 ? <Empty>No sales in this period.</Empty> : (
+              <Table head={['#', 'Medicine', 'Category', { label: 'Units sold', right: true }, { label: 'Revenue', right: true }, { label: 'Gross profit', right: true }, { label: 'Margin', right: true }]}>
+                {d.data.top.map((r, i) => <tr key={r.medicine}><td className="num px-3 py-2 text-muted">{i + 1}</td><td className="px-3 py-2 font-medium">{r.name}</td><td className="px-3 py-2">{r.category}</td><td className="num px-3 py-2 text-right">{r.units.toLocaleString()}</td><td className="num px-3 py-2 text-right">{money(r.revenue)}</td><td className="num px-3 py-2 text-right">{money(r.profit)}</td><td className={`num px-3 py-2 text-right ${r.margin < 8 ? 'text-danger' : ''}`}>{r.margin}%</td></tr>)}
+              </Table>
+            )}
+          </Card>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="p-4"><h2 className="mb-3 font-semibold">Sales by category</h2>{d.data.byCategory.length === 0 ? <p className="text-sm text-muted">-</p> : <BarList rows={d.data.byCategory.map((c) => ({ label: c.category, value: c.revenue, note: `${c.medicines} medicines, profit ${money(c.profit)}` }))} />}</Card>
+            <Card>
+              <div className="flex items-center justify-between px-4 pt-3"><h2 className="font-semibold">Slow moving stock</h2>{csv('slow-moving', [{ key: 'name', label: 'Medicine' }, { key: 'category', label: 'Category' }, { key: 'boxes', label: 'Boxes in stock' }, { key: 'value', label: 'Money tied up (cost)' }], d.data.slowMoving)}</div>
+              <p className="px-4 pb-2 text-xs text-muted">In stock, but not sold for {slowDays} days. Consider a discount or stop re-ordering.</p>
+              {d.data.slowMoving.length === 0 ? <Empty>Nothing is stuck. Good.</Empty> : (
+                <Table head={['Medicine', { label: 'Boxes', right: true }, { label: 'Cost tied up', right: true }]}>
+                  {d.data.slowMoving.map((r) => <tr key={r.medicine}><td className="px-3 py-2"><p className="font-medium">{r.name}</p><p className="text-xs text-muted">{r.category}</p></td><td className="num px-3 py-2 text-right">{r.boxes}</td><td className="num px-3 py-2 text-right font-medium">{money(r.value)}</td></tr>)}
+                </Table>
+              )}
+            </Card>
+          </div>
+        </div>
       )}
 
       {d && tab === 'inventory' && (

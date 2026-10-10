@@ -28,5 +28,10 @@ body { background: var(--color-paper); color: var(--color-ink); font-family: var
   html, body { background: #fff !important; height: auto !important; margin: 0 !important; }
   body > *:not(.print-root) { display: none !important; }
   .print-root { display: block !important; width: 80mm; padding: 4mm; font-size: 11px; line-height: 1.4; color: #000; background: #fff; }
+  .print-root.print-wide { width: 190mm; padding: 10mm; font-size: 11px; line-height: 1.35; font-family: var(--font-sans); }
+  .print-wide table { width: 100%; border-collapse: collapse; margin: 6px 0 12px; }
+  .print-wide th, .print-wide td { border-bottom: 1px solid #999; padding: 3px 4px; text-align: left; vertical-align: top; }
+  .print-wide th { background: #eee; }
+  .print-wide .r { text-align: right; }
   .no-print { display: none !important; }
 }

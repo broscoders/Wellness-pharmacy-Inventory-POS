@@ -9,5 +9,6 @@ router.get('/movements', c.movements);
 router.get('/suppliers', c.suppliers);
 router.get('/customers', c.customers);
 router.get('/profit', c.profit);
+router.get('/products', c.products);
 
 module.exports = router;

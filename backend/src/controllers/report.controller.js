@@ -14,6 +14,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { round2, rangeFromQuery, localDay } = require('../utils/money');
 const { unitsPerBox, fromBase } = require('../utils/units');
 const { getAlerts } = require('../services/inventory.service');
+const { productStats, slowMoving } = require('../services/analytics.service');
 const { getPagination, pageMeta } = require('../utils/pagination');
 
 const sum = (a, f) => a.reduce((s, x) => s + f(x), 0);
@@ -190,4 +191,26 @@ const profit = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { sales, inventory, movements, suppliers, customers, profit };
+// ---- Products: best sellers, category-wise sales, slow moving stock
+const products = asyncHandler(async (req, res) => {
+  const range = rangeFromQuery(req.query);
+  const all = await productStats(range.start, range.end);
+  const byCat = new Map();
+  for (const p of all) {
+    const c = byCat.get(p.category) || { category: p.category, medicines: 0, units: 0, revenue: 0, profit: 0 };
+    c.medicines += 1; c.units += p.units; c.revenue += p.revenue; c.profit += p.profit;
+    byCat.set(p.category, c);
+  }
+  const slow = await slowMoving(Math.min(Math.max(parseInt(req.query.slowDays, 10) || 60, 15), 365));
+  res.json({
+    success: true, range: meta(range),
+    data: {
+      top: [...all].sort((a, b) => b.revenue - a.revenue).slice(0, 30),
+      byCategory: [...byCat.values()].map((c) => ({ ...c, revenue: round2(c.revenue), profit: round2(c.profit) })).sort((a, b) => b.revenue - a.revenue),
+      slowMoving: slow.slice(0, 50),
+    },
+    totals: { medicinesSold: all.length, revenue: round2(sum(all, (p) => p.revenue)), profit: round2(sum(all, (p) => p.profit)), slowMovingValue: round2(sum(slow, (s) => s.value)), slowMovingCount: slow.length },
+  });
+});
+
+module.exports = { sales, inventory, movements, suppliers, customers, profit, products };
