@@ -111,4 +111,17 @@ const archive = asyncHandler(async (req, res) => {
   res.json({ success: true, data: med, message: 'Medicine deactivated' });
 });
 
-module.exports = { list, getOne, byBarcode, create, update, archive, createSchema, updateSchema, objectId };
+const { importMedicines } = require('../services/import.service');
+const importSchema = z.object({
+  rows: z.array(z.record(z.string(), z.any())).min(1, 'The file has no data rows').max(1500, 'Maximum 1500 rows per import - split the file'),
+  dryRun: z.boolean().default(true),
+  updateExisting: z.boolean().default(false),
+});
+
+const importRows = asyncHandler(async (req, res) => {
+  const result = await importMedicines(req.body.rows, { dryRun: req.body.dryRun, updateExisting: req.body.updateExisting });
+  if (!req.body.dryRun) await audit(req, 'medicine.import', 'Medicine', undefined, result.summary);
+  res.json({ success: true, dryRun: req.body.dryRun, ...result, rows: result.rows.filter((r) => r.status !== 'create' || r.warnings.length || r.messages.length).slice(0, 500) });
+});
+
+module.exports = { list, getOne, byBarcode, create, update, archive, importRows, createSchema, updateSchema, importSchema, objectId };

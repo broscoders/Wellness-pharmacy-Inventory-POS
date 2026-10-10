@@ -129,6 +129,41 @@ test('pharmacy API: auth, FEFO sales, returns, credit, purchases, reports', asyn
     assert.strictEqual((await call('POST', '/sales', { ...body, prescription: rx._id })).status, 201);
   });
 
+  await t.test('bulk import: dry run, real import, importing twice never doubles stock', async () => {
+    const rows = [
+      { name: 'Imp A', category: 'Tablet', barcode: 'IMP-1', stripsPerBox: '10', unitsPerStrip: '10', purchasePrice: '400', salePriceStrip: '55', batchNumber: 'b1', expiry: '30/06/2029', openingBoxes: '2', openingStrips: '3' },
+      { name: 'Imp B', category: 'Brand New Category', supplier: 'Imp Supplier', stripsPerBox: '1', unitsPerStrip: '12', salePriceUnit: '120', requiresPrescription: 'yes', batchNumber: 'x9', expiry: '2029-12', openingUnits: '30' },
+      { name: '', stripsPerBox: 'abc' },
+      { name: 'Imp C', openingBoxes: '1' }, // stock without batch/expiry
+      { name: 'Imp A dup', barcode: 'IMP-1' }, // barcode repeated in the file
+    ];
+    const dry = await call('POST', '/medicines/import', { rows, dryRun: true });
+    assert.strictEqual(dry.status, 200);
+    assert.deepStrictEqual([dry.summary.create, dry.summary.errors], [2, 3]);
+    assert.strictEqual((await call('GET', '/medicines?search=Imp A')).data.length, 0, 'a dry run must not save anything');
+    const real = await call('POST', '/medicines/import', { rows, dryRun: false });
+    assert.strictEqual(real.summary.create, 2);
+    const a = (await call('GET', '/medicines?search=Imp A')).data[0];
+    assert.strictEqual(a.stock.sellable, 230); // 2 boxes + 3 strips
+    const again = await call('POST', '/medicines/import', { rows, dryRun: false });
+    assert.strictEqual(again.summary.create, 0); assert.strictEqual(again.summary.skip, 2);
+    assert.strictEqual((await call('GET', '/medicines?search=Imp A')).data[0].stock.sellable, 230);
+    const b = (await call('GET', '/medicines?search=Imp B')).data[0];
+    assert.ok(b.requiresPrescription && b.category.name === 'Brand New Category' && b.supplier.name === 'Imp Supplier');
+    const cash = (await call('POST', '/auth/login', { email: 'cash@t.com', password: 'Cashier@123' }, '')).accessToken;
+    assert.strictEqual((await call('POST', '/medicines/import', { rows, dryRun: true }, cash)).status, 403);
+  });
+
+  await t.test('shop settings: everyone reads, only the owner changes', async () => {
+    const cash = (await call('POST', '/auth/login', { email: 'cash@t.com', password: 'Cashier@123' }, '')).accessToken;
+    assert.strictEqual((await call('GET', '/settings', null, cash)).status, 200);
+    assert.strictEqual((await call('PUT', '/settings', { shopName: 'X Store' }, cash)).status, 403);
+    const r = await call('PUT', '/settings', { shopName: 'Al-Shifa Medical Store', address: 'Lahore' });
+    assert.strictEqual(r.data.shopName, 'Al-Shifa Medical Store');
+    assert.strictEqual((await call('GET', '/settings', null, cash)).data.address, 'Lahore');
+    assert.strictEqual((await call('PUT', '/settings', { shopName: 'x' })).status, 400);
+  });
+
   await t.test('reports agree with the dashboard', async () => {
     const today = new Date().toISOString().slice(0, 10);
     const dash = (await call('GET', '/dashboard')).data;

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { dateTime, money } from '@/lib/format';
+import { useSettings } from '@/context/SettingsContext';
 
 // Groups the per-batch rows back into the lines the cashier entered.
 function groupLines(items) {
@@ -16,12 +17,18 @@ function groupLines(items) {
 }
 
 function Body({ sale }) {
+  const { settings: st } = useSettings();
   const lines = groupLines(sale.items);
   return (
     <>
       <div className="text-center">
-        <p className="text-base font-bold">WELLNESS PHARMACY</p>
-        <p>{sale.type === 'wholesale' ? 'Wholesale invoice' : 'Retail invoice'}</p>
+        <p className="text-base font-bold uppercase">{st.shopName}</p>
+        {st.tagline && <p>{st.tagline}</p>}
+        {st.address && <p>{st.address}</p>}
+        {st.phone && <p>Tel: {st.phone}</p>}
+        {st.licenseNo && <p>Drug license: {st.licenseNo}</p>}
+        {st.ntn && <p>NTN: {st.ntn}</p>}
+        <p className="mt-1 font-bold">{sale.type === 'wholesale' ? 'WHOLESALE INVOICE' : 'SALES RECEIPT'}</p>
       </div>
       <div className="my-2 border-y border-dashed border-black py-1">
         <p>Invoice: <b>{sale.invoiceNo}</b></p>
@@ -47,7 +54,7 @@ function Body({ sale }) {
         {sale.changeGiven > 0 && <Row k="Change" v={money(sale.changeGiven)} />}
         {sale.creditAmount > 0 && <Row k="On credit (udhaar)" v={money(sale.creditAmount)} bold />}
       </div>
-      <p className="mt-3 text-center">Thank you! Medicines once sold can be returned only with this receipt.</p>
+      <p className="mt-3 text-center">{st.receiptFooter}</p>
     </>
   );
 }

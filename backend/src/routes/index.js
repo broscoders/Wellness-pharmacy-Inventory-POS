@@ -19,5 +19,6 @@ router.use('/prescriptions', require('./prescription.routes'));
 router.use('/expenses', require('./expense.routes'));
 router.use('/audit', require('./audit.routes'));
 router.use('/reports', require('./report.routes'));
+router.use('/settings', require('./setting.routes'));
 
 module.exports = router;

@@ -15,6 +15,7 @@ const ALL = [
   'expenses:view', 'expenses:manage',
   'reports:view',
   'audit:view',
+  'settings:manage',
 ];
 
 const ROLE_PERMISSIONS = {

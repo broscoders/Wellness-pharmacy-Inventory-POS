@@ -2,10 +2,11 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { KeyRound, LayoutDashboard, ShoppingCart, Receipt, Pill, LogOut, Menu, X, Boxes, Truck, Users, Building2, FileText, Wallet, BarChart3, Tags, UserCog, ScrollText } from 'lucide-react';
+import { KeyRound, LayoutDashboard, ShoppingCart, Receipt, Pill, LogOut, Menu, X, Boxes, Truck, Users, Building2, FileText, Wallet, BarChart3, Tags, UserCog, ScrollText, Settings } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Spinner } from '@/components/ui';
 import ChangePassword from '@/components/ChangePassword';
+import { SettingsProvider, useSettings } from '@/context/SettingsContext';
 
 // Only pages that exist are listed. Each item shows only if the user has the permission.
 const GROUPS = [
@@ -30,11 +31,19 @@ const GROUPS = [
     { href: '/categories', label: 'Categories', icon: Tags, perm: 'categories:manage' },
     { href: '/users', label: 'Staff & roles', icon: UserCog, perm: 'users:manage' },
     { href: '/audit', label: 'Audit log', icon: ScrollText, perm: 'audit:view' },
+    { href: '/settings', label: 'Shop settings', icon: Settings, perm: 'settings:manage' },
   ] },
 ];
 
 export default function AppShell({ children }) {
+  const { user, loading } = useAuth();
+  if (loading || !user) return <Shell>{children}</Shell>;
+  return <SettingsProvider><Shell>{children}</Shell></SettingsProvider>;
+}
+
+function Shell({ children }) {
   const { user, loading, logout, can } = useAuth();
+  const { settings } = useSettings();
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -67,7 +76,7 @@ export default function AppShell({ children }) {
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[240px_1fr]">
       <aside className="no-print hidden border-r border-line bg-white lg:flex lg:flex-col">
-        <div className="flex h-14 items-center gap-2 border-b border-line px-5 font-semibold text-pine-dark"><Pill className="h-5 w-5" /> Wellness Pharmacy</div>
+        <div className="flex h-14 items-center gap-2 border-b border-line px-5 font-semibold text-pine-dark"><Pill className="h-5 w-5 shrink-0" /> <span className="truncate">{settings.shopName}</span></div>
         {nav}
         <div className="border-t border-line p-3">
           <div className="px-3 pb-2"><p className="truncate font-medium">{user.name}</p><p className="text-xs capitalize text-muted">{user.role}</p></div>
@@ -77,7 +86,7 @@ export default function AppShell({ children }) {
       </aside>
 
       <div className="no-print flex h-14 items-center justify-between border-b border-line bg-white px-4 lg:hidden">
-        <span className="flex items-center gap-2 font-semibold text-pine-dark"><Pill className="h-5 w-5" /> Wellness Pharmacy</span>
+        <span className="flex items-center gap-2 font-semibold text-pine-dark"><Pill className="h-5 w-5" /> {settings.shopName}</span>
         <button onClick={() => setOpen(true)} aria-label="Open menu"><Menu className="h-6 w-6" /></button>
       </div>
       {open && (

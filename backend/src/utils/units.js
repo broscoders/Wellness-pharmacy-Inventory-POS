@@ -35,16 +35,30 @@ function unitPrice(prices = {}, med, type) {
   return 0;
 }
 
-// Accepts "YYYY-MM-DD" or "YYYY-MM" (month-only means the last day of that month, as printed on packs).
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const endOfMonth = (y, m) => new Date(Date.UTC(y, m, 0, 23, 59, 59)); // m is 1-12; day 0 of next month = last day
+const validDay = (y, m, d) => m >= 1 && m <= 12 && d >= 1 && d <= new Date(Date.UTC(y, m, 0)).getUTCDate();
+
+/**
+ * Expiry as printed on packs / written in registers. Month-only values mean the LAST day of that month.
+ * Accepted: 2028-06-30, 2028-06, 30/06/2028, 30-06-2028 (day first), 06/2028, 06-2028, Jun 2028, JUN-2028.
+ * Returns null when it is not a real date.
+ */
 function parseExpiry(value) {
-  if (value instanceof Date) return value;
-  const s = String(value).trim();
-  const m = /^(\d{4})-(\d{2})$/.exec(s);
-  if (m) return new Date(Date.UTC(+m[1], +m[2], 0, 23, 59, 59)); // day 0 of next month = last day
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return null;
-  d.setUTCHours(23, 59, 59, 0);
-  return d;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  const s = String(value ?? '').trim();
+  let m;
+  const full = (y, mo, d) => (y >= 2000 && y <= 2100 && validDay(y, mo, d) ? new Date(Date.UTC(y, mo - 1, d, 23, 59, 59)) : null);
+  const month = (y, mo) => (y >= 2000 && y <= 2100 && mo >= 1 && mo <= 12 ? endOfMonth(y, mo) : null);
+  if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ].*)?$/.exec(s))) return full(+m[1], +m[2], +m[3]);
+  if ((m = /^(\d{4})-(\d{1,2})$/.exec(s))) return month(+m[1], +m[2]);
+  if ((m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(s))) return full(+m[3], +m[2], +m[1]);
+  if ((m = /^(\d{1,2})[/.-](\d{4})$/.exec(s))) return month(+m[2], +m[1]);
+  if ((m = /^([A-Za-z]{3,9})[\s/.-]+(\d{4})$/.exec(s))) {
+    const idx = MONTHS.indexOf(m[1].slice(0, 3).toLowerCase());
+    return idx >= 0 ? month(+m[2], idx + 1) : null;
+  }
+  return null;
 }
 
 module.exports = { unitsPerBox, toBase, fromBase, unitPrice, parseExpiry };

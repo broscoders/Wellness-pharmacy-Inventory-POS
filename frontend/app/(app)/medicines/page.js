@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useRef, useEffect, useState } from 'react';
-import { PackagePlus, Pencil, Plus, Search } from 'lucide-react';
+import Link from 'next/link';
+import { FileUp, PackagePlus, Pencil, Plus, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { money, stockText, dateOnly } from '@/lib/format';
@@ -63,7 +64,7 @@ export default function MedicinesPage() {
   return (
     <>
       <PageHeader title="Medicines" subtitle="Catalogue with live stock, batches and prices"
-        actions={canManage && <Button onClick={() => setEditing('new')}><Plus className="h-4 w-4" /> Add medicine</Button>} />
+        actions={canManage && <>{can('inventory:manage') && <Link href="/medicines/import" className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 font-medium hover:bg-mint"><FileUp className="h-4 w-4" /> Import from file</Link>}<Button onClick={() => setEditing('new')}><Plus className="h-4 w-4" /> Add medicine</Button></>} />
       <Card>
         <div className="border-b border-line p-3">
           <div className="relative max-w-sm">

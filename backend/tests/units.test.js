@@ -26,3 +26,17 @@ test('parseExpiry handles YYYY-MM as end of month and rejects junk', () => {
   assert.strictEqual(parseExpiry('2028-02').toISOString(), '2028-02-29T23:59:59.000Z');
   assert.strictEqual(parseExpiry('not a date'), null);
 });
+
+test('parseExpiry understands the formats people actually write', () => {
+  const iso = (v) => parseExpiry(v)?.toISOString().slice(0, 10);
+  assert.strictEqual(iso('2028-06-30'), '2028-06-30');
+  assert.strictEqual(iso('2028-6-5'), '2028-06-05');
+  assert.strictEqual(iso('2028-06'), '2028-06-30');
+  assert.strictEqual(iso('30/06/2028'), '2028-06-30'); // day first
+  assert.strictEqual(iso('05-07-2027'), '2027-07-05');
+  assert.strictEqual(iso('06/2027'), '2027-06-30');
+  assert.strictEqual(iso('02/2028'), '2028-02-29');
+  assert.strictEqual(iso('Jun 2027'), '2027-06-30');
+  assert.strictEqual(iso('DEC-2026'), '2026-12-31');
+  for (const bad of ['', 'soon', '31/02/2028', '13/2028', '2028-13', '1999-01', '30/06/28']) assert.strictEqual(parseExpiry(bad), null, bad);
+});
