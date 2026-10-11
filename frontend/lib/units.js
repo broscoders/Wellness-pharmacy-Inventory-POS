@@ -18,3 +18,13 @@ export function sellPrice(m, saleType, unitType) {
 }
 
 export const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+
+// total base units -> { box, strip, unit } for display (mirrors the backend)
+export function fromBase(m, total) {
+  const upb = unitsPerBox(m);
+  const ups = m.unitsPerStrip || 1;
+  const box = Math.floor(total / upb);
+  const rem = total - box * upb;
+  const strip = Math.floor(rem / ups);
+  return { box, strip, unit: rem - strip * ups };
+}

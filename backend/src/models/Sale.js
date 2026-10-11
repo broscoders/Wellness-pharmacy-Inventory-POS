@@ -25,6 +25,7 @@ const paymentSchema = new mongoose.Schema(
 const saleSchema = new mongoose.Schema(
   {
     invoiceNo: { type: String, unique: true, index: true },
+    clientId: { type: String, unique: true, sparse: true }, // set by the POS screen: a retried request returns the same bill instead of billing twice
     type: { type: String, enum: ['retail', 'wholesale'], default: 'retail' },
     customer: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', index: true },
     customerName: String,

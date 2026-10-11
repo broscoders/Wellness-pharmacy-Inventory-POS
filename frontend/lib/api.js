@@ -34,9 +34,10 @@ function buildUrl(path, params) {
   return `/api${path}${qs ? `?${qs}` : ''}`;
 }
 
-export async function api(path, { method = 'GET', body, params } = {}) {
+export async function api(path, { method = 'GET', body, params, timeoutMs } = {}) {
   const run = () =>
     fetch(buildUrl(path, params), {
+      signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
       method,
       credentials: 'include',
       headers: {
@@ -46,7 +47,11 @@ export async function api(path, { method = 'GET', body, params } = {}) {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
 
-  let res = await run();
+  let res;
+  try { res = await run(); } catch (e) {
+    if (e?.name === 'TimeoutError' || e?.name === 'AbortError') throw new ApiError('The server did not answer in time. Check the internet and try again.', 0);
+    throw new ApiError('Cannot reach the server. Check the internet connection.', 0);
+  }
   if (res.status === 401 && !path.startsWith('/auth/login') && !path.startsWith('/auth/refresh')) {
     const renewed = await refreshSession();
     if (renewed) res = await run();

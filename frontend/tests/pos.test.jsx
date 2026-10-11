@@ -1,0 +1,190 @@
+// Renders the real POS screen with the real catalog provider; only the network (fetch) is faked.
+import { describe, it, expect, beforeEach } from 'vitest';
+import { render, screen, within, waitFor, cleanup } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { AuthProvider } from '@/context/AuthContext';
+import { CatalogProvider } from '@/context/CatalogContext';
+import PosPage from '@/app/(app)/pos/page';
+import { clearCache, loadCache } from '@/lib/catalogDb';
+
+const day = 86400000;
+const med = (id, name, extra = {}) => ({
+  _id: id, name, genericName: '', manufacturer: '', category: 'c1', barcode: '', stripsPerBox: 10, unitsPerStrip: 10,
+  salePrice: { box: 0, strip: 25, unit: 0 }, wholesalePrice: { box: 0, strip: 0, unit: 0 }, minStockLevel: 0,
+  requiresPrescription: false, pop: 0, batches: [[1000, Date.now() + 300 * day]], ...extra,
+});
+const CATALOG = [
+  med('m1', 'Panadol 500mg', { genericName: 'Paracetamol', manufacturer: 'GSK', barcode: '8961000000001', pop: 40 }),
+  med('m2', 'Calpol Syrup', { genericName: 'Paracetamol', salePrice: { box: 0, strip: 0, unit: 120 } }),
+  med('m3', 'Brufen 400mg', { batches: [] }), // out of stock
+  med('m4', 'Augmentin 625mg', { requiresPrescription: true, salePrice: { box: 0, strip: 640, unit: 0 } }),
+];
+
+let calls; let failNextSale; let saleBodies;
+function installFetch() {
+  calls = []; saleBodies = [];
+  globalThis.fetch = async (url, opts = {}) => {
+    const u = String(url);
+    calls.push(`${opts.method || 'GET'} ${u}`);
+    const ok = (body, status = 200) => ({ ok: status < 400, status, json: async () => body });
+    if (u.startsWith('/api/auth/refresh')) return ok({ accessToken: 't', user: { id: 'u1', name: 'Cashier', role: 'cashier', permissions: ['pos:use', 'medicines:view', 'sales:discount', 'prescriptions:view'] } });
+    if (u.startsWith('/api/settings')) return ok({ data: {} });
+    if (u.startsWith('/api/medicines/catalog')) return ok({ success: true, mode: 'full', serverTime: new Date().toISOString(), categories: [{ _id: 'c1', name: 'Tablet' }], removed: [], data: CATALOG });
+    if (u.startsWith('/api/sales') && opts.method === 'POST') {
+      const body = JSON.parse(opts.body); saleBodies.push(body);
+      if (failNextSale) { failNextSale = false; throw new TypeError('network down'); }
+      return ok({ success: true, data: { _id: 's1', invoiceNo: 'INV-000001', items: [], payments: body.payments, total: 0, subtotal: 0, createdAt: new Date().toISOString(), type: 'retail' } }, 201);
+    }
+    return ok({ success: true, data: [] });
+  };
+}
+
+async function open() {
+  const user = userEvent.setup();
+  render(<AuthProvider><CatalogProvider><PosPage /></CatalogProvider></AuthProvider>);
+  await screen.findByText(/4 medicines ready/);
+  return user;
+}
+const searchBox = () => screen.getByLabelText('Search medicine');
+const searchCalls = () => calls.filter((c) => c.includes('/api/medicines') && !c.includes('/catalog')).length;
+
+beforeEach(async () => { await clearCache(); failNextSale = false; installFetch(); });
+
+describe('POS counter', () => {
+  it('shows the whole medicine list at once, best sellers first', async () => {
+    await open();
+    const list = screen.getByRole('listbox');
+    expect(within(list).getAllByRole('option')[0]).toHaveTextContent('Panadol 500mg');
+    expect(within(list).getAllByRole('option')).toHaveLength(4);
+  });
+
+  it('search is instant and never calls the server', async () => {
+    const user = await open();
+    const before = searchCalls();
+    await user.type(searchBox(), 'calp');
+    expect(within(screen.getByRole('listbox')).getAllByRole('option')).toHaveLength(1);
+    expect(screen.getByRole('option', { name: /Calpol Syrup/ })).toBeInTheDocument();
+    expect(searchCalls()).toBe(before); // zero extra requests while typing
+  });
+
+  it('Enter adds the highlighted medicine; arrow keys choose another', async () => {
+    const user = await open();
+    await user.type(searchBox(), 'paracetamol');
+    await user.keyboard('{ArrowDown}{Enter}'); // second paracetamol medicine = Calpol
+    expect(screen.getByText('Bill')).toBeTruthy();
+    expect(screen.getAllByText(/Calpol Syrup/).length).toBeGreaterThan(0);
+    expect(searchBox()).toHaveFocus();
+    expect(searchBox()).toHaveValue('');
+  });
+
+  it('a scanned barcode adds the medicine on Enter', async () => {
+    const user = await open();
+    await user.type(searchBox(), '8961000000001{Enter}');
+    expect(screen.getAllByText(/Panadol 500mg/).length).toBeGreaterThan(1); // in the list and on the bill
+    expect(screen.getByText('1 item')).toBeInTheDocument();
+    expect(screen.getAllByText('Rs 25').length).toBeGreaterThan(0);
+  });
+
+  it('"3*pana" adds three at once and the total follows', async () => {
+    const user = await open();
+    await user.type(searchBox(), '3*pana{Enter}');
+    expect(screen.getByLabelText('Quantity')).toHaveValue(3);
+    expect(screen.getAllByText('Rs 75').length).toBeGreaterThan(0);
+  });
+
+  it('an out-of-stock medicine cannot be added and says why', async () => {
+    const user = await open();
+    await user.type(searchBox(), 'brufen{Enter}');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/out of stock/i);
+    expect(screen.queryByLabelText('Quantity')).toBeNull();
+  });
+
+  it('an unknown name shows a clear message', async () => {
+    const user = await open();
+    await user.type(searchBox(), 'zzzzzz{Enter}');
+    expect(await screen.findByRole('alert')).toHaveTextContent('No medicine found for "zzzzzz"');
+  });
+
+  it('F9 completes the sale with exact cash, stock drops on screen at once', async () => {
+    const user = await open();
+    await user.type(searchBox(), '2*pana{Enter}');
+    await user.keyboard('{F9}');
+    await screen.findByText('Sale completed');
+    expect(saleBodies).toHaveLength(1);
+    expect(saleBodies[0].payments).toEqual([{ method: 'cash', amount: 50 }]);
+    expect(saleBodies[0].items).toEqual([{ medicine: 'm1', unitType: 'strip', quantity: 2 }]);
+    expect(saleBodies[0].clientId).toMatch(/.{8,}/);
+    await user.keyboard('{Enter}'); // Enter = new sale
+    await waitFor(() => expect(screen.queryByText('Sale completed')).toBeNull());
+    expect(screen.getByText(/Nothing on the bill yet/)).toBeInTheDocument();
+    // 1000 units - 2 strips (20 units) = 980 units = 9 strips + 8 units + ... shown as box/strip/unit
+    expect(within(screen.getByRole('listbox')).getAllByRole('option')[0]).toHaveTextContent('9 box, 8 strip');
+  });
+
+  it('a retry after a network failure sends the SAME bill key (no double billing)', async () => {
+    const user = await open();
+    await user.type(searchBox(), 'pana{Enter}');
+    failNextSale = true;
+    await user.keyboard('{F9}');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Cannot reach the server/);
+    await user.keyboard('{F9}');
+    await screen.findByText('Sale completed');
+    expect(saleBodies).toHaveLength(2);
+    expect(saleBodies[1].clientId).toBe(saleBodies[0].clientId);
+  });
+
+  it('changing the bill after a failed attempt gets a NEW key', async () => {
+    const user = await open();
+    await user.type(searchBox(), 'pana{Enter}');
+    failNextSale = true;
+    await user.keyboard('{F9}');
+    await screen.findByRole('alert');
+    await user.type(searchBox(), 'pana{Enter}'); // one more pack on the bill
+    await user.keyboard('{F9}');
+    await screen.findByText('Sale completed');
+    expect(saleBodies[1].clientId).not.toBe(saleBodies[0].clientId);
+    expect(saleBodies[1].items[0].quantity).toBe(2);
+  });
+
+  it('udhaar needs a customer; change is shown for cash over the total', async () => {
+    const user = await open();
+    await user.type(searchBox(), 'pana{Enter}');
+    await user.type(screen.getByLabelText('Cash received'), '100');
+    expect(screen.getByText(/Change to give back/)).toHaveTextContent('Rs 75');
+    await user.clear(screen.getByLabelText('Cash received'));
+    await user.type(screen.getAllByPlaceholderText('0').at(-1), '25'); // udhaar box
+    expect(screen.getByText(/Choose a customer to record udhaar/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Complete sale/ })).toBeDisabled();
+  });
+
+  it('prescription medicines block the sale until the check box is ticked', async () => {
+    const user = await open();
+    await user.type(searchBox(), 'augm{Enter}');
+    expect(screen.getByRole('button', { name: /Complete sale/ })).toBeDisabled();
+    await user.click(screen.getByRole('checkbox', { name: /checked the prescription/ }));
+    expect(screen.getByRole('button', { name: /Complete sale/ })).toBeEnabled();
+  });
+
+  it('discount accepts a percentage', async () => {
+    const user = await open();
+    await user.type(searchBox(), '4*pana{Enter}'); // Rs 100
+    await user.type(screen.getByLabelText('Discount'), '10%');
+    expect(screen.getAllByText('Rs 90').length).toBeGreaterThan(0);
+  });
+
+  it('opens from the saved copy when the server is unreachable', async () => {
+    await open(); // first visit saves the catalog
+    await waitFor(async () => expect(await loadCache()).not.toBeNull(), { timeout: 4000 }); // the save is debounced
+    cleanup();
+    globalThis.fetch = async (url) => { if (String(url).startsWith('/api/auth/refresh')) return { ok: true, status: 200, json: async () => ({ accessToken: 't', user: { id: 'u1', name: 'C', role: 'cashier', permissions: ['pos:use', 'medicines:view'] } }) }; throw new TypeError('offline'); };
+    render(<AuthProvider><CatalogProvider><PosPage /></CatalogProvider></AuthProvider>);
+    expect(await screen.findByText(/using the saved list/)).toBeInTheDocument();
+    await user_type_check();
+  });
+});
+
+async function user_type_check() {
+  const user = userEvent.setup();
+  await user.type(searchBox(), 'pana');
+  expect(within(screen.getByRole('listbox')).getAllByRole('option')).toHaveLength(1);
+}

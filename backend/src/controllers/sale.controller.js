@@ -20,6 +20,7 @@ const createSchema = z.object({
   notes: z.string().trim().max(300).optional(),
   prescriptionConfirmed: z.boolean().optional(),
   prescription: objectId.optional().nullable(),
+  clientId: z.string().trim().min(8).max(64).optional(), // idempotency key, one per bill on screen
 });
 
 const returnSchema = z.object({
@@ -43,7 +44,23 @@ const create = asyncHandler(async (req, res) => {
   } else {
     delete req.body.prescription;
   }
-  const sale = await checkout(req.body, req.user);
+  // Idempotent: if the network dropped after the bill was saved and the screen retries, hand back the same bill.
+  const { clientId } = req.body;
+  if (clientId) {
+    const existing = await Sale.findOne({ clientId });
+    if (existing) return res.status(200).json({ success: true, data: existing, duplicate: true });
+  }
+  let sale;
+  try {
+    sale = await checkout(req.body, req.user);
+  } catch (err) {
+    // Two identical requests raced: the loser's stock was already put back, answer with the winner's bill.
+    if (err.code === 11000 && clientId) {
+      const winner = await Sale.findOne({ clientId });
+      if (winner) return res.status(200).json({ success: true, data: winner, duplicate: true });
+    }
+    throw err;
+  }
   if (rx) {
     await Sale.updateOne({ _id: sale._id }, { $set: { prescription: rx._id } });
     await Prescription.updateOne({ _id: rx._id }, { $addToSet: { sales: sale._id } });

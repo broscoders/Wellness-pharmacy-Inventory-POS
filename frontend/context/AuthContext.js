@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, refreshSession, setAccessToken } from '@/lib/api';
+import { clearCache } from '@/lib/catalogDb';
 
 const AuthContext = createContext(null);
 
@@ -29,6 +30,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(async () => {
     try { await api('/auth/logout', { method: 'POST' }); } catch { /* ignore */ }
     setAccessToken(null);
+    clearCache(); // the saved medicine list must not stay on a shared counter computer
     setUser(null);
   }, []);
 

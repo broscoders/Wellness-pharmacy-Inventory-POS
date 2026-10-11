@@ -5,6 +5,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const audit = require('../utils/audit');
 const { getPagination, pageMeta, escapeRegex } = require('../utils/pagination');
 const { stockByMedicine, decorateMedicine } = require('../services/inventory.service');
+const { buildCatalog } = require('../services/catalog.service');
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid id');
 const price = z.object({ box: z.number().min(0).optional(), strip: z.number().min(0).optional(), unit: z.number().min(0).optional() });
@@ -72,6 +73,17 @@ const getOne = asyncHandler(async (req, res) => {
   res.json({ success: true, data: decorateMedicine(med, stockMap) });
 });
 
+// Compact catalog for the POS screen (see services/catalog.service.js). ?since=<ISO time> returns only what changed.
+const catalog = asyncHandler(async (req, res) => {
+  let since;
+  if (req.query.since) {
+    since = new Date(String(req.query.since));
+    if (Number.isNaN(since.getTime())) throw ApiError.badRequest('Invalid "since" time');
+  }
+  res.set('Cache-Control', 'no-store');
+  res.json({ success: true, ...(await buildCatalog({ since })) });
+});
+
 const byBarcode = asyncHandler(async (req, res) => {
   const med = await Medicine.findOne({ barcode: req.params.code, isActive: true });
   if (!med) throw ApiError.notFound('No medicine found for this barcode');
@@ -132,4 +144,4 @@ const importRows = asyncHandler(async (req, res) => {
   res.json({ success: true, dryRun: req.body.dryRun, ...result, rows: result.rows.filter((r) => r.status !== 'create' || r.warnings.length || r.messages.length).slice(0, 500) });
 });
 
-module.exports = { list, filters, getOne, byBarcode, create, update, archive, importRows, createSchema, updateSchema, importSchema, objectId };
+module.exports = { list, filters, catalog, getOne, byBarcode, create, update, archive, importRows, createSchema, updateSchema, importSchema, objectId };

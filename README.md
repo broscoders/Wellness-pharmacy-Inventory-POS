@@ -23,12 +23,22 @@ Remaining before go-live: deploy to Vercel, create the owner account on the prod
 
 ## What the system can do
 
-- **Counter:** POS with barcode scanning, retail/wholesale prices, box/strip/unit selling, discounts, cash/card/bank/udhaar, change, receipt printing (80mm thermal or A4), hold/resume bills (F8), keyboard shortcuts (F2 search, F9 complete), returns, invoice cancellation.
+- **Counter (fast):** the whole medicine list is loaded into the browser once, so search is instant, the list is browsable on the POS screen, barcode scans add instantly, a retried bill can never be saved twice. POS with barcode scanning, retail/wholesale prices, box/strip/unit selling, discounts, cash/card/bank/udhaar, change, receipt printing (80mm thermal or A4), hold/resume bills (F8), keyboard shortcuts (F2 search, F9 complete), returns, invoice cancellation.
 - **Stock:** batches with expiry, FEFO (earliest expiry sold first, expired never sold), 30/60/90-day alerts, low/out-of-stock, **reorder list grouped by supplier (print/CSV)**, stock adjustments with reason, full stock history, medicine detail view with margin.
 - **Money:** purchases with partial payment, supplier ledger and payments, customer udhaar ledger and payments, printable account statements, expenses (void, never delete), profit and loss.
 - **Owner insight:** dashboard with sales/profit chart and best sellers, reports (sales, profit, **products: best sellers, category-wise, slow moving stock**, inventory, suppliers, customers) with CSV export, audit log.
 - **Setup:** shop name/address/phone/license printed on receipts (Shop settings), **bulk import of medicines + opening stock from CSV/Excel-saved file**, staff roles, change password.
 - **Safety:** go-live clean-up (`reset:data`), **backup and restore** scripts.
+
+## Tests
+
+```powershell
+cd backend ; npm test            # API flows, FEFO, units, POS catalog, idempotent checkout (needs MONGODB_URI; uses throw-away databases)
+cd frontend ; npm test           # search logic + the real POS screen (typing, scanning, F9, retries, offline start)
+```
+Set `PERF_N=5000` to run the backend catalog speed check with 5,000 medicines.
+
+More documentation: `docs/HOW-IT-WORKS.md` (plain-language explanation and shortcuts) and `docs/BLUEPRINT.md` (status and roadmap).
 
 ## Roles
 

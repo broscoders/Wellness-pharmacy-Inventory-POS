@@ -114,6 +114,7 @@ async function checkout(input, user) {
     const sale = await Sale.create({
       _id: saleId,
       invoiceNo,
+      clientId: input.clientId,
       type,
       customer: customer?._id,
       customerName: customer?.name,

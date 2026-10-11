@@ -1,0 +1,179 @@
+// Pure helpers for the POS catalog (no React, no network) so they can be tested on their own.
+//
+// A catalog item is what GET /api/medicines/catalog returns:
+//   { _id, name, genericName, manufacturer, category, barcode, stripsPerBox, unitsPerStrip,
+//     salePrice, wholesalePrice, minStockLevel, requiresPrescription, pop, batches: [[quantity, expiryMs], ...] }
+import { fromBase } from './units.js';
+
+const DAY = 24 * 60 * 60 * 1000;
+
+// "Panadol Extra 500mg" -> "panadol extra 500mg"; punctuation becomes a space; accents/case ignored.
+export function normalize(s) {
+  return String(s ?? '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
+    .trim();
+}
+const compact = (s) => normalize(s).replace(/ /g, '');
+
+// Adds the search fields once, when an item is loaded (not on every keystroke).
+export function prepare(item) {
+  const name = normalize(item.name);
+  const generic = normalize(item.genericName);
+  const maker = normalize(item.manufacturer);
+  return {
+    ...item,
+    _n: name,
+    _c: compact(item.name),
+    _g: generic,
+    _m: maker,
+    _b: String(item.barcode || '').toLowerCase(),
+    _words: name.split(' ').filter(Boolean),
+    _gwords: generic.split(' ').filter(Boolean),
+  };
+}
+
+// Live stock from the batch list. "Sellable" = not expired, exactly like the server decides at checkout.
+export function stockOf(item, now = Date.now()) {
+  let total = 0; let sellable = 0; let expired = 0; let nearest = null;
+  for (const [qty, exp] of item.batches || []) {
+    if (!(qty > 0)) continue;
+    total += qty;
+    if (exp < now) expired += qty;
+    else { sellable += qty; if (nearest === null || exp < nearest) nearest = exp; }
+  }
+  return {
+    total, sellable, expired,
+    nearestExpiry: nearest,
+    daysToExpiry: nearest === null ? null : Math.ceil((nearest - now) / DAY),
+    display: fromBase(item, sellable),
+    isOut: sellable === 0,
+    onlyExpired: sellable === 0 && expired > 0,
+    isLow: sellable > 0 && sellable <= (item.minStockLevel || 0),
+  };
+}
+
+// Same stock rule as the server (earliest expiry first), applied to the browser copy right after a sale
+// so the screen is correct immediately; the next background sync confirms it.
+export function takeLocal(batches, baseQty, now = Date.now()) {
+  let left = baseQty;
+  const sorted = [...batches].sort((a, b) => a[1] - b[1]);
+  const out = sorted.map(([qty, exp]) => {
+    if (left > 0 && exp >= now && qty > 0) {
+      const take = Math.min(qty, left);
+      left -= take;
+      return [qty - take, exp];
+    }
+    return [qty, exp];
+  });
+  return out.filter(([qty]) => qty > 0);
+}
+
+// "3*panadol" or "3x panadol" -> { qty: 3, text: 'panadol' }. A plain search returns qty 1.
+export function parseQuery(raw) {
+  const m = /^\s*(\d{1,4})\s*[*xX\u00d7]\s*(\S.*)$/.exec(String(raw ?? ''));
+  if (m && m[2].trim().length >= 2) return { qty: Math.max(1, parseInt(m[1], 10)), text: m[2].trim() };
+  return { qty: 1, text: String(raw ?? '').trim() };
+}
+
+// Edit distance <= 1 (insert, delete, replace, swap of neighbours) between a typed word and the start of a name word.
+function closeEnough(typed, word) {
+  const w = word.slice(0, typed.length + 1);
+  if (Math.abs(w.length - typed.length) > 1) return false;
+  const a = typed; const b = w.length > typed.length ? w : word.slice(0, typed.length);
+  if (a === b) return true;
+  if (a.length === b.length) {
+    let diff = 0; let first = -1;
+    for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) { diff += 1; if (first < 0) first = i; if (diff > 2) return false; }
+    if (diff === 1) return true;
+    return diff === 2 && a[first] === b[first + 1] && a[first + 1] === b[first];
+  }
+  const [long, short] = a.length > b.length ? [a, b] : [b, a];
+  let i = 0; let j = 0; let skipped = 0;
+  while (i < long.length && j < short.length) {
+    if (long[i] === short[j]) { i += 1; j += 1; } else { skipped += 1; i += 1; if (skipped > 1) return false; }
+  }
+  return true;
+}
+
+const hasWordStart = (words, t) => words.some((w) => w.startsWith(t));
+
+function scoreItem(it, terms, whole, wholeCompact, now) {
+  let score = 0;
+  // every typed word must match something (name, generic, maker or barcode)
+  for (const t of terms) {
+    let best = 0;
+    if (it._words.length && it._words[0].startsWith(t)) best = Math.max(best, 120);
+    else if (hasWordStart(it._words, t)) best = Math.max(best, 90);
+    else if (it._n.includes(t)) best = Math.max(best, 60);
+    if (hasWordStart(it._gwords, t)) best = Math.max(best, 70);
+    else if (it._g.includes(t)) best = Math.max(best, 40);
+    if (it._m.includes(t)) best = Math.max(best, 25);
+    if (it._b && it._b.includes(t)) best = Math.max(best, t.length >= 5 ? 80 : 0);
+    if (best === 0 && t.length >= 3 && it._c.includes(t)) best = 50; // typed without the space: "panadol500"
+    if (best === 0) return -1;
+    score += best;
+  }
+  if (it._b === whole) score += 2000;
+  if (it._n === whole) score += 600;
+  else if (it._n.startsWith(whole)) score += 400;
+  else if (wholeCompact.length >= 3 && it._c.startsWith(wholeCompact)) score += 300;
+  else if (wholeCompact.length >= 3 && it._c.includes(wholeCompact)) score += 120;
+  score += Math.min(it.pop || 0, 60) / 2; // sells often -> a little higher
+  const sellable = (it.batches || []).some(([q, e]) => q > 0 && e >= now);
+  if (!sellable) score -= 1000; // out of stock / expired always sinks below sellable matches
+  return score;
+}
+
+/**
+ * Search the whole catalog in memory.
+ *   search(items, 'para 500', { limit: 40, category: id })
+ * Words can be in any order; each must match the name, generic name, manufacturer or barcode.
+ * When nothing matches, one small typo is forgiven ("panadoll" finds Panadol).
+ */
+const byName = (a, b) => (a._n < b._n ? -1 : a._n > b._n ? 1 : 0);
+
+export function search(items, query, { limit = 40, category = null, now = Date.now() } = {}) {
+  const pool = category ? items.filter((i) => i.category === category) : items;
+  const whole = normalize(query);
+  if (!whole) {
+    // nothing typed: best sellers first, then A-Z
+    return [...pool].sort((a, b) => (b.pop || 0) - (a.pop || 0) || byName(a, b)).slice(0, limit);
+  }
+  const terms = whole.split(' ');
+  const wholeCompact = whole.replace(/ /g, '');
+  const hits = [];
+  for (const it of pool) {
+    const s = scoreItem(it, terms, whole, wholeCompact, now);
+    if (s > -1000000 && s !== -1) hits.push([s, it]);
+  }
+  if (hits.length < 3 && terms.every((t) => t.length >= 4)) {
+    const seen = new Set(hits.map(([, it]) => it._id));
+    for (const it of pool) {
+      if (seen.has(it._id)) continue;
+      const ok = terms.every((t) => it._words.some((w) => closeEnough(t, w)) || it._gwords.some((w) => closeEnough(t, w)));
+      if (ok) hits.push([-500 + Math.min(it.pop || 0, 60) / 2, it]);
+    }
+  }
+  hits.sort((a, b) => b[0] - a[0] || byName(a[1], b[1]));
+  return hits.slice(0, limit).map(([, it]) => it);
+}
+
+// Exact barcode (scanner). Returns the item or undefined.
+export function findByBarcode(items, code) {
+  const c = String(code ?? '').trim().toLowerCase();
+  if (!c) return undefined;
+  return items.find((i) => i._b === c);
+}
+
+// "10%" -> 10% of subtotal, "250" -> 250. Never more than the subtotal, never negative.
+export function parseDiscount(text, subtotal) {
+  const s = String(text ?? '').trim();
+  if (!s) return 0;
+  const pct = /^(\d+(?:\.\d+)?)\s*%$/.exec(s);
+  const v = pct ? (subtotal * parseFloat(pct[1])) / 100 : Number(s);
+  if (!Number.isFinite(v) || v < 0) return 0;
+  return Math.min(Math.round((v + Number.EPSILON) * 100) / 100, subtotal);
+}

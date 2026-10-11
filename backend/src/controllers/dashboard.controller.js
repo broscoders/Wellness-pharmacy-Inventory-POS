@@ -4,6 +4,7 @@ const Purchase = require('../models/Purchase');
 const Customer = require('../models/Customer');
 const Supplier = require('../models/Supplier');
 const Batch = require('../models/Batch');
+const Medicine = require('../models/Medicine');
 const asyncHandler = require('../utils/asyncHandler');
 const { round2, dayRange } = require('../utils/money');
 const { unitsPerBox } = require('../utils/units');
@@ -16,13 +17,14 @@ const summary = asyncHandler(async (req, res) => {
   const { start, end } = dayRange();
   const range = { $gte: start, $lt: end };
 
-  const [sales, returns, purchases, customers, suppliers, batches, alerts, recentSales, recentPurchases] = await Promise.all([
+  const [sales, returns, purchases, customers, suppliers, batches, medicines, alerts, recentSales, recentPurchases] = await Promise.all([
     Sale.find({ createdAt: range, status: { $ne: 'cancelled' } }),
     SaleReturn.find({ createdAt: range }),
     Purchase.find({ purchaseDate: range }),
     Customer.find({ balance: { $gt: 0 } }).select('balance'),
     Supplier.find({ balance: { $gt: 0 } }).select('balance'),
-    Batch.find({ isActive: true, quantity: { $gt: 0 } }).populate('medicine', 'stripsPerBox unitsPerStrip purchasePrice').lean(),
+    Batch.find({ isActive: true, quantity: { $gt: 0 } }).select('medicine quantity expiryDate purchasePricePerBox').lean(),
+    Medicine.find().select('stripsPerBox unitsPerStrip purchasePrice').lean(), // one plain query instead of a join per batch
     getAlerts(),
     Sale.find().select('-items').sort({ createdAt: -1 }).limit(8),
     Purchase.find().select('-items').sort({ purchaseDate: -1 }).limit(8),
@@ -42,10 +44,12 @@ const summary = asyncHandler(async (req, res) => {
   const now = new Date();
   let totalUnits = 0;
   let stockValue = 0;
+  const medById = new Map(medicines.map((m) => [String(m._id), m]));
   for (const b of batches) {
-    if (!b.medicine) continue;
+    const med = medById.get(String(b.medicine));
+    if (!med) continue;
     totalUnits += b.quantity;
-    if (b.expiryDate >= now) stockValue += ((b.purchasePricePerBox || b.medicine.purchasePrice || 0) / unitsPerBox(b.medicine)) * b.quantity;
+    if (b.expiryDate >= now) stockValue += ((b.purchasePricePerBox || med.purchasePrice || 0) / unitsPerBox(med)) * b.quantity;
   }
 
   const recent = [
