@@ -2,6 +2,7 @@
  * DEMO DATA for testing and client demos. Adds ~110 medicines in 10 categories with batches, a few suppliers and customers.
  *
  *   npm run seed:demo                      medicines + suppliers + customers + 30 days of demo activity
+ *   npm run seed:demo -- --quick           same, but a shorter activity (about 2/5 of the time on a cloud database)
  *   npm run seed:demo -- --no-activity     only the medicines/suppliers/customers
  *   npm run seed:demo -- --remove          remove ALL demo data again (medicines are kept if a real, non-demo bill uses them)
  *
@@ -19,7 +20,6 @@ const Supplier = require('../models/Supplier');
 const Customer = require('../models/Customer');
 const Sale = require('../models/Sale');
 const Purchase = require('../models/Purchase');
-const { applyMovement } = require('../services/stock.service');
 const { addActivity, removeActivity } = require('./demoActivity');
 
 const BARCODE_PREFIX = '8961000';
@@ -135,50 +135,61 @@ function toMedicine(item, index, categoryId) {
   };
 }
 
-async function addBatch(med, label, days, qty) {
-  const batchNumber = `DEMO-${label}-${String(med.barcode).slice(-4)}`;
-  if (await Batch.exists({ medicine: med._id, batchNumber })) return false;
-  const batch = await Batch.create({ medicine: med._id, batchNumber, expiryDate: inDays(days), quantity: 0, purchasePricePerBox: med.purchasePrice, supplier: med.supplier });
-  await applyMovement({ batchId: batch._id, delta: qty, type: 'opening', reason: 'Demo opening stock' });
-  return true;
-}
-
+// Everything is written with a handful of bulk operations (not one-by-one) because every round trip to a cloud
+// database costs 100-400 ms. 110 medicines + 227 batches take about a dozen trips.
 async function add() {
-  const suppliers = [];
-  for (const [name, contactPerson, phone, address] of SUPPLIERS) {
-    suppliers.push(await Supplier.findOneAndUpdate({ name }, { $setOnInsert: { name, contactPerson, phone, address, notes: DEMO_NOTE } }, { upsert: true, returnDocument: 'after' }));
-  }
-  for (const [name, phone, type, creditLimit] of CUSTOMERS) {
-    await Customer.updateOne({ name, phone }, { $setOnInsert: { name, phone, type, creditLimit, notes: DEMO_NOTE } }, { upsert: true });
-  }
-  const cats = {};
-  let created = 0; let batchesMade = 0;
-  for (let i = 0; i < ITEMS.length; i += 1) {
-    const item = ITEMS[i];
-    const catName = item.a[2];
-    if (!cats[catName]) cats[catName] = (await Category.findOneAndUpdate({ name: catName }, { $setOnInsert: { name: catName } }, { upsert: true, returnDocument: 'after' }))._id;
-    const data = toMedicine(item, i, cats[catName]);
-    let med = await Medicine.findOne({ barcode: data.barcode });
-    if (med) continue;
-    data.supplier = suppliers[i % suppliers.length]._id;
-    med = await Medicine.create(data);
-    created += 1;
+  const quick = process.argv.includes('--quick');
+  const t0 = Date.now();
+  console.log('Adding demo medicines, suppliers and customers...');
 
+  await Supplier.bulkWrite(SUPPLIERS.map(([name, contactPerson, phone, address]) => ({ updateOne: { filter: { name }, update: { $setOnInsert: { name, contactPerson, phone, address, notes: DEMO_NOTE } }, upsert: true } })));
+  await Customer.bulkWrite(CUSTOMERS.map(([name, phone, type, creditLimit]) => ({ updateOne: { filter: { name, phone }, update: { $setOnInsert: { name, phone, type, creditLimit, notes: DEMO_NOTE } }, upsert: true } })));
+  const supByName = new Map((await Supplier.find({ name: { $in: SUPPLIERS.map((x) => x[0]) } })).map((x) => [x.name, x]));
+  const suppliers = SUPPLIERS.map((x) => supByName.get(x[0]));
+
+  const catNames = [...new Set(ITEMS.map((i) => i.a[2]))];
+  const haveCats = await Category.find({ name: { $in: catNames } });
+  const missingCats = catNames.filter((n) => !haveCats.some((c) => c.name === n));
+  const newCats = missingCats.length ? await Category.insertMany(missingCats.map((name) => ({ name }))) : [];
+  const cats = new Map([...haveCats, ...newCats].map((c) => [c.name, c._id]));
+
+  const existing = await Medicine.find({ barcode: new RegExp(`^${BARCODE_PREFIX}`) });
+  const byBarcode = new Map(existing.map((m) => [m.barcode, m]));
+  const toCreate = [];
+  ITEMS.forEach((item, i) => {
+    const data = toMedicine(item, i, cats.get(item.a[2]));
+    if (!byBarcode.has(data.barcode)) { data.supplier = suppliers[i % suppliers.length]._id; toCreate.push(data); }
+  });
+  const created = toCreate.length ? await Medicine.insertMany(toCreate) : [];
+  created.forEach((m) => byBarcode.set(m.barcode, m));
+
+  // opening stock: which medicines still have no batch at all (new ones, or ones left over from an interrupted run)
+  const withBatches = new Set((await Batch.distinct('medicine', { medicine: { $in: [...byBarcode.values()].map((m) => m._id) } })).map(String));
+  const batchDocs = [];
+  ITEMS.forEach((item, i) => {
+    const med = byBarcode.get(`${BARCODE_PREFIX}${String(i + 1).padStart(6, '0')}`);
     const perBox = med.stripsPerBox * med.unitsPerStrip;
-    const boxes = rnd(4, 14);
-    const outOfStock = [20, 70].includes(i);
-    const lowStock = [11, 44, 83].includes(i);
-    if (outOfStock) continue;
-    if (lowStock) { batchesMade += +(await addBatch(med, 'LOW', 300, Math.max(1, Math.floor(med.minStockLevel / 2)))); continue; }
-    batchesMade += +(await addBatch(med, 'A', rnd(250, 420), boxes * perBox));
-    batchesMade += +(await addBatch(med, 'B', rnd(520, 780), rnd(2, 8) * perBox));
-    if (i % 13 === 5) batchesMade += +(await addBatch(med, 'NEAR30', rnd(10, 28), rnd(1, 3) * perBox)); // expires within 30 days
-    if (i % 17 === 3) batchesMade += +(await addBatch(med, 'NEAR90', rnd(65, 88), rnd(1, 3) * perBox)); // expires in 61-90 days
-    if ([7, 61].includes(i)) batchesMade += +(await addBatch(med, 'EXPIRED', -25, rnd(1, 2) * perBox)); // already expired
+    const boxes = rnd(4, 14); // random numbers are drawn for every item, so the demo shop is the same on every run
+    const plan = [];
+    if ([20, 70].includes(i)) { /* out of stock: no batch on purpose */ } else if ([11, 44, 83].includes(i)) plan.push(['LOW', 300, Math.max(1, Math.floor(med.minStockLevel / 2))]);
+    else {
+      plan.push(['A', rnd(250, 420), boxes * perBox], ['B', rnd(520, 780), rnd(2, 8) * perBox]);
+      if (i % 13 === 5) plan.push(['NEAR30', rnd(10, 28), rnd(1, 3) * perBox]); // expires within 30 days
+      if (i % 17 === 3) plan.push(['NEAR90', rnd(65, 88), rnd(1, 3) * perBox]); // expires in 61-90 days
+      if ([7, 61].includes(i)) plan.push(['EXPIRED', -25, rnd(1, 2) * perBox]); // already expired
+    }
+    if (withBatches.has(String(med._id))) return;
+    plan.forEach(([label, days, qty]) => batchDocs.push({ medicine: med._id, batchNumber: `DEMO-${label}-${String(med.barcode).slice(-4)}`, expiryDate: inDays(days), quantity: qty, purchasePricePerBox: med.purchasePrice, supplier: med.supplier }));
+  });
+  const batches = batchDocs.length ? await Batch.insertMany(batchDocs) : [];
+  if (batches.length) await StockMovement.insertMany(batches.map((b) => ({ medicine: b.medicine, batch: b._id, type: 'opening', quantity: b.quantity, balanceAfter: b.quantity, reason: 'Demo opening stock' })));
+
+  console.log(`Demo data ready: ${created.length} new medicines, ${batches.length} batches, ${SUPPLIERS.length} suppliers, ${CUSTOMERS.length} customers (${((Date.now() - t0) / 1000).toFixed(0)} s).`);
+  console.log('Categories used:', catNames.join(', '));
+  if (!process.argv.includes('--no-activity')) {
+    console.log(`\nNow adding ${quick ? 'a short' : '30 days of'} demo activity (purchases, sales, returns, payments...). On a cloud database this takes ${quick ? '1-3' : '5-15'} minutes: please keep this window open, a progress line is shown regularly.`);
+    await addActivity({ log: console.log, quick });
   }
-  console.log(`Demo data ready: ${created} new medicines, ${batchesMade} batches, ${SUPPLIERS.length} suppliers, ${CUSTOMERS.length} customers.`);
-  console.log('Categories used:', Object.keys(cats).join(', '));
-  if (!process.argv.includes('--no-activity')) await addActivity({ log: console.log });
 }
 
 async function remove() {

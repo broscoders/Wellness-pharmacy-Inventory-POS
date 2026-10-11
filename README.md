@@ -63,9 +63,12 @@ Optional demo data: 110 medicines in 10 categories (with manufacturers, barcodes
 ```powershell
 cd backend
 npm run seed:demo                    # everything above (the owner account must exist: npm run seed)
+npm run seed:demo -- --quick         # same but a shorter activity (about 1-3 minutes on a cloud database)
 npm run seed:demo -- --no-activity   # only medicines, suppliers, customers
 npm run seed:demo -- --remove        # remove all demo data again
 ```
+**Time:** the full activity needs about 1,300 database operations. On a cloud database (Atlas) this takes roughly 4-10 minutes, so the command prints a progress line every 10 events. Keep the window open until it says `Demo activity: ...`. If a run is interrupted, the next run refuses and tells you to clean up first (`reset:data`, then `seed:demo` again); a run that was interrupted before the activity started simply continues and fills in what is missing.
+
 The passwords of the demo staff accounts are printed once in the terminal when they are created (they use the e-mail domain `@demo.wellness.local`). Prices are approximate. Demo medicines have barcodes starting with `8961000` (e.g. `8961000000001` = Panadol 500mg) so you can test the barcode box on the POS screen.
 
 ### Moving your old register / software data in

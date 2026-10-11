@@ -20,6 +20,7 @@ const SupplierLedger = require('../models/SupplierLedger');
 const Prescription = require('../models/Prescription');
 const PrescriptionFile = require('../models/PrescriptionFile');
 const Expense = require('../models/Expense');
+const Counter = require('../models/Counter');
 const { checkout, processReturn, cancelSale } = require('../services/sale.service');
 const { createPurchase, createPurchaseReturn } = require('../services/purchase.service');
 const { postCustomerLedger, postSupplierLedger } = require('../services/ledger.service');
@@ -39,25 +40,37 @@ const pick = (arr) => arr[rnd(0, arr.length - 1)];
 const chance = (pct) => rnd(1, 100) <= pct;
 
 // a business-hours timestamp `daysAgo` days back (never in the future)
+let runStart = Date.now();
 function when(daysAgo, hourMin = 9, hourMax = 21) {
   const start = dayRange(new Date(Date.now() - daysAgo * DAY)).start;
   const t = new Date(start.getTime() + rnd(hourMin, hourMax) * 3600000 + rnd(0, 59) * 60000);
-  return t > new Date() ? new Date(Date.now() - rnd(2, 90) * 60000) : t;
+  const latest = runStart - 120000; // always at least 2 minutes before this run began
+  return t.getTime() > latest ? new Date(latest - rnd(0, 90) * 60000) : t;
 }
 
-// Services stamp "now". Move everything they just wrote to the intended date.
-async function backdate(t0, at) {
-  const q = { createdAt: { $gte: t0 } };
-  const set = { $set: { createdAt: at, updatedAt: at } };
-  await Promise.all([Sale, SaleReturn, StockMovement, CustomerLedger, SupplierLedger, PurchaseReturn].map((M) => M.collection.updateMany(q, set)));
-  await Purchase.collection.updateMany(q, { $set: { createdAt: at, updatedAt: at, purchaseDate: at } });
+// Services stamp "now" on everything they write. We remember the real-time window of each event and, at the very end,
+// move what was written in that window to the intended date (one bulk write per collection instead of 7 trips per event).
+// Intended dates are always BEFORE the run started (see when()), so a moved document can never fall into a later window.
+const windows = [];
+const backdate = async (t0, at) => { windows.push({ from: t0, to: new Date(), at }); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function flushBackdates() {
+  if (!windows.length) return;
+  for (const M of [Sale, SaleReturn, StockMovement, CustomerLedger, SupplierLedger, PurchaseReturn, Purchase]) {
+    await M.collection.bulkWrite(windows.map((w) => ({ updateMany: { filter: { createdAt: { $gte: w.from, $lte: w.to } }, update: { $set: { createdAt: w.at, updatedAt: w.at, ...(M === Purchase ? { purchaseDate: w.at } : {}) } } } })));
+  }
+  windows.length = 0;
 }
 
 const DOCTORS = ['Dr. Asif Mehmood', 'Dr. Sana Iqbal', 'Dr. Tariq Hussain', 'Dr. Nadia Rauf', 'Dr. Imran Qureshi'];
 const PRESCRIBED = [['Augmentin 625mg', '1+0+1', 'after meals, 5 days'], ['Panadol 500mg', '1+1+1', 'when fever'], ['Risek 20mg', '1+0+0', 'before breakfast, 14 days'], ['Zyrtec 10mg', '0+0+1', 'at night, 5 days'], ['Cipro 500mg', '1+0+1', '7 days'], ['Glucophage 500mg', '1+0+1', 'with meals']];
 
-async function addActivity({ log }) {
-  if (await Sale.exists({ notes: TAG })) { log('Demo activity already exists - skipped (remove it first with --remove to rebuild).'); return; }
+async function addActivity({ log, quick = false }) {
+  runStart = Date.now();
+  if (await Counter.findById('demo_activity')) { log('Demo activity already exists - skipped (remove it first with --remove, or clean everything with reset:data).'); return; }
+  if ((await Sale.exists({ notes: TAG })) || (await Purchase.exists({ notes: TAG }))) {
+    throw new Error('A previous demo run was interrupted half-way, so the demo activity is incomplete. Clean up first:  npm run reset:data -- --yes  (with CONFIRM_DB_NAME set)  and then  npm run seed:demo  again. See README, "Clean the database".');
+  }
 
   const admin = await User.findOne({ role: 'admin', isActive: true });
   if (!admin) throw new Error('No admin user found. Run `npm run seed` first.');
@@ -92,7 +105,7 @@ async function addActivity({ log }) {
 
   // ---- prescriptions
   const rxDocs = [];
-  for (let i = 0; i < 8; i += 1) {
+  for (let i = 0; i < (quick ? 4 : 8); i += 1) {
     const cust = retailCust[i % retailCust.length];
     const at = when(rnd(1, 28));
     const lines = Array.from({ length: rnd(1, 3) }, () => pick(PRESCRIBED));
@@ -108,9 +121,9 @@ async function addActivity({ log }) {
   // ---- build the timeline
   const events = [];
   const ev = (daysAgo, type, extra = {}) => events.push({ at: when(daysAgo), type, ...extra });
-  [27, 22, 17, 12, 7, 2].forEach((d, i) => ev(d, 'purchase', { supplier: suppliers[i % suppliers.length], pay: [1, 0.5, 0.4, 0, 0.7, 0.3][i] }));
+  (quick ? [24, 12, 3] : [27, 22, 17, 12, 7, 2]).forEach((d, i) => ev(d, 'purchase', { supplier: suppliers[i % suppliers.length], pay: (quick ? [1, 0.4, 0.3] : [1, 0.5, 0.4, 0, 0.7, 0.3])[i] }));
   [20, 9, 1].forEach((d) => ev(d, 'supplierPayment'));
-  for (let i = 0; i < 75; i += 1) {
+  for (let i = 0; i < (quick ? 30 : 75); i += 1) {
     const d = chance(35) ? rnd(0, 4) : rnd(0, 29);
     ev(d, 'sale', { wholesale: chance(14) });
   }
@@ -130,8 +143,11 @@ async function addActivity({ log }) {
   const failed = {};
   let batchNo = 0;
 
+  const started = Date.now();
+  let processed = 0;
   for (const e of events) {
-    const t0 = new Date(Date.now() - 1);
+    await sleep(3); // keeps the real-time windows of two events apart
+    const t0 = new Date();
     try {
       if (e.type === 'purchase') {
         const lines = Array.from({ length: rnd(4, 8) }, () => pick(plain.concat(rxMeds)));
@@ -169,14 +185,13 @@ async function addActivity({ log }) {
         if (sale.items.some((i) => i.returnedBase > 0)) throw new Error('has returns');
         await cancelSale(sale, pick(['Billing mistake', 'Customer left without paying']), admin);
         s.cancelled = true;
-        await backdate(t0, e.at); // the sale itself keeps its own earlier date; reverse stock rows get the cancel date
-        await Sale.collection.updateOne({ _id: sale._id }, { $set: { createdAt: s.at, cancelledAt: e.at } });
+        await backdate(t0, e.at); // the reverse stock rows get the cancel date; the invoice keeps its own earlier date
+        await Sale.collection.updateOne({ _id: sale._id }, { $set: { cancelledAt: e.at } });
       } else if (e.type === 'purchaseReturn') {
         const p = pick(made.purchases.filter((x) => x.at < e.at));
         const purchase = await Purchase.findById(p.id);
         await createPurchaseReturn(purchase, { items: [{ purchaseItem: purchase.items[0]._id, quantity: { box: 1 } }], reason: 'Damaged packs received' }, buyer);
         await backdate(t0, e.at);
-        await Purchase.collection.updateOne({ _id: purchase._id }, { $set: { createdAt: p.at, purchaseDate: p.at } });
       } else if (e.type === 'expense') {
         const x = await Expense.create({ expenseNo: await nextNumber('expense', 'EXP'), category: e.category, amount: e.amount, date: e.at, description: `${TAG}: ${e.description}`, paymentMethod: e.amount > 10000 ? 'bank_transfer' : 'cash', isVoided: !!e.void, voidReason: e.void ? 'Entered twice' : undefined, voidedBy: e.void ? admin._id : undefined, createdBy: admin._id, createdByName: admin.name });
         await Expense.collection.updateOne({ _id: x._id }, { $set: { createdAt: e.at, updatedAt: e.at } });
@@ -185,7 +200,15 @@ async function addActivity({ log }) {
     } catch (err) {
       failed[e.type] = (failed[e.type] || 0) + 1;
     }
+    processed += 1;
+    if (processed % 10 === 0 || processed === events.length) {
+      const secs = (Date.now() - started) / 1000;
+      log(`  progress: ${processed} of ${events.length} (${Math.round((processed / events.length) * 100)}%), ${Math.round(secs)} s so far, about ${Math.round((secs / processed) * (events.length - processed))} s left`);
+    }
   }
+  log('  fixing dates...');
+  await flushBackdates();
+  await Counter.updateOne({ _id: 'demo_activity' }, { $set: { seq: 1 } }, { upsert: true }); // marks the run as complete
 
   async function runSale(e, t0) {
     const wholesale = e.wholesale && wholesaleCust.length > 0;
@@ -253,6 +276,7 @@ async function removeActivity({ log }) {
   await PrescriptionFile.deleteMany({ prescription: { $in: rx } });
   await Prescription.deleteMany({ _id: { $in: rx } });
   await Expense.deleteMany({ description: /^DEMO: / });
+  await Counter.deleteOne({ _id: 'demo_activity' });
   await User.deleteMany({ email: new RegExp(`${DEMO_EMAIL_DOMAIN.replace('.', '\\.')}$`) });
   // balances of demo customers/suppliers are reset so the (now empty) demo records can be removed cleanly
   await Customer.updateMany({ _id: { $in: demoCust } }, { $set: { balance: 0 } });

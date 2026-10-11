@@ -6,22 +6,14 @@ const ApiError = require('../utils/ApiError');
 const { toBase, unitsPerBox, unitPrice } = require('../utils/units');
 const { round2 } = require('../utils/money');
 const { nextNumber } = require('../utils/counter');
-const { allocateFEFO, applyMovement } = require('./stock.service');
+const mongoose = require('mongoose');
+const Batch = require('../models/Batch');
+const StockMovement = require('../models/StockMovement');
+const { planFEFO, loadSellableBatches, takeStock, putBackStock, recordMovements, applyMovement } = require('./stock.service');
 const { postCustomerLedger } = require('./ledger.service');
 
 const hasPrice = (p = {}) => (p.box || 0) + (p.strip || 0) + (p.unit || 0) > 0;
 const baseQtyOfType = (med, t) => (t === 'box' ? unitsPerBox(med) : t === 'strip' ? med.unitsPerStrip || 1 : 1);
-
-// Undo already-applied stock movements if checkout fails half-way (no multi-document transaction needed).
-async function rollbackMovements(done, userId, reason) {
-  for (const m of done.reverse()) {
-    try {
-      await applyMovement({ batchId: m.batchId, delta: m.qty, type: 'adjustment', reason, userId });
-    } catch (e) {
-      console.error('ROLLBACK FAILED for batch', String(m.batchId), e.message);
-    }
-  }
-}
 
 async function checkout(input, user) {
   const { items, type = 'retail', customer: customerId, discount = 0, payments, notes, prescriptionConfirmed } = input;
@@ -32,14 +24,23 @@ async function checkout(input, user) {
     if (!customer || !customer.isActive) throw ApiError.badRequest('Customer not found or inactive');
   }
 
-  const applied = []; // stock movements done so far (for rollback)
+  // Round trips matter when the database is in the cloud: load all medicines and all sellable batches of the bill in ONE query each.
+  const medIds = [...new Set(items.map((i) => String(i.medicine)))];
+  const [meds, pool] = await Promise.all([Medicine.find({ _id: { $in: medIds } }), loadSellableBatches(medIds)]);
+  const medById = new Map(meds.map((m) => [String(m._id), m]));
+
+  const saleId = new mongoose.Types.ObjectId();
+  const applied = []; // stock already taken (undone if the bill fails)
+  const movements = []; // history rows, written once at the end
+  let movementsSaved = false;
+  let saleSaved = false;
   const saleItems = [];
   let subtotal = 0;
 
   try {
     for (let i = 0; i < items.length; i += 1) {
       const line = items[i];
-      const med = await Medicine.findById(line.medicine);
+      const med = medById.get(String(line.medicine));
       if (!med || !med.isActive) throw ApiError.badRequest(`Medicine not found or inactive (line ${i + 1})`);
       if (med.requiresPrescription && !prescriptionConfirmed) {
         throw ApiError.badRequest(`"${med.name}" needs a prescription. Confirm the prescription to continue.`);
@@ -53,11 +54,14 @@ async function checkout(input, user) {
       const perBase = unitPrice(list, med, line.unitType);
       if (!perBase || perBase <= 0) throw ApiError.badRequest(`Sale price is not set for "${med.name}"`);
 
-      // FEFO: earliest non-expired batches first. Expired batches are never allocated.
-      const plan = await allocateFEFO(med._id, baseQty);
+      // FEFO: earliest non-expired batches first. Expired batches are never in the pool, so they can never be sold.
+      const batches = pool.get(String(med._id)) || [];
+      const plan = planFEFO(batches, baseQty);
       for (const { batch, quantity } of plan) {
-        await applyMovement({ batchId: batch._id, delta: -quantity, type: 'sale', reason: 'POS sale', userId: user._id });
+        const updated = await takeStock(batch._id, quantity);
         applied.push({ batchId: batch._id, qty: quantity });
+        batch.quantity = updated.quantity; // keep the in-memory pool right for a later line with the same medicine
+        movements.push({ medicine: med._id, batch: batch._id, type: 'sale', quantity: -quantity, balanceAfter: updated.quantity, reason: 'POS sale', refModel: 'Sale', refId: saleId, user: user._id });
 
         const lineTotal = round2(perBase * quantity);
         const costPerBase = (batch.purchasePricePerBox || med.purchasePrice || 0) / unitsPerBox(med);
@@ -105,7 +109,10 @@ async function checkout(input, user) {
     if (change > 0 && cashPaid < change) throw ApiError.badRequest('Only cash overpayment can be returned as change');
 
     const invoiceNo = await nextNumber('invoice', 'INV');
+    await recordMovements(movements);
+    movementsSaved = true;
     const sale = await Sale.create({
+      _id: saleId,
       invoiceNo,
       type,
       customer: customer?._id,
@@ -122,6 +129,7 @@ async function checkout(input, user) {
       createdBy: user._id,
       createdByName: user.name,
     });
+    saleSaved = true;
 
     if (creditAmount > 0) {
       await postCustomerLedger({
@@ -130,7 +138,14 @@ async function checkout(input, user) {
     }
     return sale;
   } catch (err) {
-    if (applied.length) await rollbackMovements(applied, user._id, 'Rollback: sale failed');
+    // Undo everything this bill did, so a failed bill leaves no trace (no stock change, no history rows, no half-saved invoice).
+    try {
+      if (saleSaved) await Sale.deleteOne({ _id: saleId });
+      if (movementsSaved) await StockMovement.deleteMany({ refModel: 'Sale', refId: saleId });
+      await putBackStock(applied);
+    } catch (e) {
+      console.error('CHECKOUT ROLLBACK FAILED for sale', String(saleId), e.message);
+    }
     throw err;
   }
 }
