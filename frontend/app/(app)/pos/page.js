@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { Clock, Minus, Pause, Plus, Printer, RefreshCw, Search, Trash2, Volume2, VolumeX, WifiOff, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -35,6 +36,7 @@ export default function PosPage() {
   const [category, setCategory] = useState(null);
   const [cart, setCart] = useState([]); // { key, id, unitType, qty, name }
   const [lastKey, setLastKey] = useState(null);
+  const [altFor, setAltFor] = useState(null); // medicine id whose alternatives are shown instead of the search results
   const [saleType, setSaleType] = useState('retail');
   const [customer, setCustomer] = useState(null);
   const [discountText, setDiscountText] = useState('');
@@ -47,7 +49,10 @@ export default function PosPage() {
   const [held, setHeld] = useState([]);
   const [heldOpen, setHeldOpen] = useState(false);
   const [prefs, setPrefs] = useState({ sound: true, autoPrint: false });
+  const [shiftOpen, setShiftOpen] = useState(true); // assume yes until the server says otherwise, so the warning never flashes
   const [, setTick] = useState(0);
+  const useShifts = can('shifts:use');
+  useEffect(() => { if (useShifts) api('/shifts/current').then((r) => setShiftOpen(!!r.data?._id)).catch(() => {}); }, [useShifts, done]);
 
   useEffect(() => { setHeld(read(HELD_KEY, [])); setPrefs((p) => ({ ...p, ...read(PREF_KEY, {}) })); }, []);
   const setPref = (patch) => setPrefs((p) => { const next = { ...p, ...patch }; write(PREF_KEY, next); return next; });
@@ -61,15 +66,23 @@ export default function PosPage() {
     () => (catalog?.ready ? catalog.search(parsed.text, { limit: parsed.text || category ? 60 : 30, category }) : []),
     [catalog, parsed.text, category],
   );
-  useEffect(() => { setActive(0); }, [parsed.text, category]);
+  const altMed = altFor ? catalog?.get(altFor) : null;
+  const alts = useMemo(() => (altMed ? catalog.substitutes(altMed) : []), [catalog, altMed]);
+  const shown = altMed ? alts : results; // what the list on the left currently contains
+  useEffect(() => { setActive(0); setAltFor(null); }, [parsed.text, category]);
+  useEffect(() => { setActive(0); }, [altFor]);
   useEffect(() => { listRef.current?.querySelector(`[data-i="${active}"]`)?.scrollIntoView({ block: 'nearest' }); }, [active]);
 
   const fail = (msg) => { setError(msg); sound('bad'); };
 
   function addToCart(med, qty = 1) {
     const stock = stockOf(med);
-    if (stock.isOut) { fail(`${med.name}: ${stock.onlyExpired ? 'only expired stock is left, it cannot be sold' : 'out of stock'}`); return false; }
-    setError('');
+    if (stock.isOut) {
+      fail(`${med.name}: ${stock.onlyExpired ? 'only expired stock is left, it cannot be sold' : 'out of stock'}`);
+      if (med.genericName) setAltFor(med._id); // show what else the shop has with the same generic name
+      return false;
+    }
+    setError(''); setAltFor(null);
     const unitType = defaultUnit(med);
     const existing = cart.find((l) => l.id === med._id && l.unitType === unitType);
     let key;
@@ -87,7 +100,7 @@ export default function PosPage() {
   }
 
   function onSearchKey(e) {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, Math.max(results.length - 1, 0))); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, Math.max(shown.length - 1, 0))); return; }
     if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); return; }
     if (e.key === 'Escape') { setTerm(''); setError(''); return; }
     if (e.key !== 'Enter') return;
@@ -96,7 +109,7 @@ export default function PosPage() {
     if (!q.text) return;
     const byCode = catalog.byBarcode(q.text);
     if (byCode) { addToCart(byCode, q.qty); return; }
-    const pick = q.text === parsed.text ? results[active] : catalog.search(q.text, { limit: 1 })[0];
+    const pick = q.text === parsed.text ? shown[active] : catalog.search(q.text, { limit: 1 })[0];
     if (pick) addToCart(pick, q.qty);
     else { fail(`No medicine found for "${q.text}"`); e.currentTarget.select(); }
   }
@@ -231,6 +244,9 @@ export default function PosPage() {
         </div>
       </div>
 
+      {useShifts && !shiftOpen && (
+        <p className="no-print rounded-md bg-amber-soft px-3 py-2 text-sm text-amber">No cash shift is open, so today&apos;s cash cannot be checked at closing. <Link href="/shifts" className="font-medium underline">Open your shift</Link></p>
+      )}
       <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1fr)_500px]">
         {/* LEFT: find medicines */}
         <Card className="no-print flex min-h-0 flex-col">
@@ -257,14 +273,20 @@ export default function PosPage() {
             {catalog?.status.state === 'error' && !catalog.count && (
               <div className="p-10 text-center"><p className="font-medium text-danger">Could not load medicines</p><p className="mt-1 text-sm text-muted">{catalog.status.error}</p><Button className="mt-3" onClick={() => catalog.refresh()}>Try again</Button></div>
             )}
-            {catalog?.ready && showingBest && results.length > 0 && <p className="px-3 pb-1 pt-2 text-xs font-medium text-muted">{results.some((m) => m.pop > 0) ? 'Sold most often' : 'All medicines A to Z'}</p>}
-            {catalog?.ready && !results.length && (
+            {altMed && (
+              <div className="flex items-start justify-between gap-3 border-b border-amber/30 bg-amber-soft px-3 py-2 text-sm">
+                <p><b>{altMed.name}</b> is not available. {alts.length ? <>Same generic (<b>{altMed.genericName}</b>), in stock. The pharmacist should confirm the substitute with the patient.</> : <>No other brand with <b>{altMed.genericName}</b> is in stock.</>}</p>
+                <button className="shrink-0 text-xs font-medium text-amber underline" onClick={() => setAltFor(null)}>Back to search</button>
+              </div>
+            )}
+            {catalog?.ready && !altMed && showingBest && results.length > 0 && <p className="px-3 pb-1 pt-2 text-xs font-medium text-muted">{results.some((m) => m.pop > 0) ? 'Sold most often' : 'All medicines A to Z'}</p>}
+            {catalog?.ready && !altMed && !results.length && (
               <div className="p-10 text-center text-muted">
                 {parsed.text ? <>No medicine matches <b className="text-ink">&ldquo;{parsed.text}&rdquo;</b>. Check the spelling, try the generic name, or scan the barcode.</> : 'No medicines in this category yet.'}
               </div>
             )}
             <ul>
-              {results.map((m, i) => <MedicineRow key={m._id} med={m} i={i} on={i === active} saleType={saleType} onPick={() => addToCart(m, parsed.qty)} onHover={() => setActive(i)} />)}
+              {shown.map((m, i) => <MedicineRow key={m._id} med={m} i={i} on={i === active} saleType={saleType} sameStrength={altMed ? m.sameStrength : undefined} onPick={() => addToCart(m, parsed.qty)} onHover={() => setActive(i)} />)}
             </ul>
           </div>
         </Card>
@@ -279,7 +301,7 @@ export default function PosPage() {
             <div className="min-h-0 flex-1 overflow-y-auto">
               {lines.length === 0 ? <p className="p-8 text-center text-sm text-muted">Nothing on the bill yet.<br />Scan or search a medicine on the left.</p> : (
                 <ul className="divide-y divide-line">
-                  {lines.map((l) => <BillLine key={l.key} l={l} hot={l.key === lastKey} onChange={(p) => setLine(l.key, p)} onRemove={() => removeLine(l.key)} onDone={() => searchRef.current?.focus()} />)}
+                  {lines.map((l) => <BillLine key={l.key} l={l} hot={l.key === lastKey} onChange={(p) => setLine(l.key, p)} onRemove={() => removeLine(l.key)} onAlt={() => setAltFor(l.id)} onDone={() => searchRef.current?.focus()} />)}
                 </ul>
               )}
             </div>
@@ -375,7 +397,7 @@ function Chip({ on, onClick, children }) {
 }
 
 // One medicine in the find list: what it is, what it costs, what is left, when it expires.
-function MedicineRow({ med, i, on, saleType, onPick, onHover }) {
+function MedicineRow({ med, i, on, saleType, sameStrength, onPick, onHover }) {
   const s = stockOf(med);
   const unit = defaultUnit(med);
   const price = sellPrice(med, saleType, unit);
@@ -389,7 +411,7 @@ function MedicineRow({ med, i, on, saleType, onPick, onHover }) {
       <button type="button" onClick={onPick} onMouseMove={onHover}
         className={`grid w-full grid-cols-[1fr_auto] items-center gap-x-3 border-b border-line px-3 py-2 text-left ${on ? 'bg-mint' : 'hover:bg-paper'} ${s.isOut ? 'opacity-60' : ''}`}>
         <span className="min-w-0">
-          <span className="flex items-center gap-2"><span className="truncate font-medium">{med.name}</span>{med.requiresPrescription && <Badge tone="warn">Rx</Badge>}</span>
+          <span className="flex items-center gap-2"><span className="truncate font-medium">{med.name}</span>{med.requiresPrescription && <Badge tone="warn">Rx</Badge>}{sameStrength === true && <Badge tone="good">Same strength</Badge>}{sameStrength === false && <Badge>Different strength</Badge>}</span>
           <span className="block truncate text-xs text-muted">{[med.genericName, med.manufacturer].filter(Boolean).join(' | ') || '\u00a0'}</span>
         </span>
         <span className="num text-right">
@@ -404,7 +426,7 @@ function MedicineRow({ med, i, on, saleType, onPick, onHover }) {
   );
 }
 
-function BillLine({ l, hot, onChange, onRemove, onDone }) {
+function BillLine({ l, hot, onChange, onRemove, onAlt, onDone }) {
   if (l.missing) {
     return <li className="flex items-center justify-between gap-3 bg-danger-soft p-3 text-sm text-danger"><span>{l.name} is no longer available</span><button onClick={onRemove} aria-label="Remove"><X className="h-4 w-4" /></button></li>;
   }
@@ -425,6 +447,7 @@ function BillLine({ l, hot, onChange, onRemove, onDone }) {
         </div>
         <div className="flex items-center gap-2">
           <span className="num text-xs text-muted">{money(l.unitPrice)} each</span>
+          {l.med.genericName && <button className="text-xs text-muted underline hover:text-ink" onClick={onAlt} title="Other brands with the same generic name">Alternatives</button>}
           <button className="rounded p-1.5 text-muted hover:bg-danger-soft hover:text-danger" onClick={onRemove} aria-label="Remove"><Trash2 className="h-4 w-4" /></button>
         </div>
       </div>

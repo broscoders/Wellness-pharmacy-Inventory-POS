@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { KeyRound, LayoutDashboard, ShoppingCart, Receipt, Pill, LogOut, Menu, X, Boxes, Truck, Users, Building2, FileText, Wallet, BarChart3, Tags, UserCog, ScrollText, Settings } from 'lucide-react';
+import { KeyRound, LayoutDashboard, ShoppingCart, Receipt, Pill, LogOut, Menu, X, Boxes, Truck, Users, Building2, FileText, Wallet, BarChart3, Tags, UserCog, ScrollText, Settings, Landmark, ClipboardList } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Spinner } from '@/components/ui';
 import ChangePassword from '@/components/ChangePassword';
@@ -14,10 +14,12 @@ const GROUPS = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, perm: 'dashboard:view' },
     { href: '/pos', label: 'POS / Billing', icon: ShoppingCart, perm: 'pos:use' },
     { href: '/sales', label: 'Sales & Returns', icon: Receipt, perm: 'sales:view' },
+    { href: '/shifts', label: 'Cash closing', icon: Landmark, perm: 'shifts:use' },
   ] },
   { title: 'Stock', items: [
     { href: '/medicines', label: 'Medicines', icon: Pill, perm: 'medicines:view' },
     { href: '/inventory', label: 'Inventory & Expiry', icon: Boxes, perm: 'inventory:view' },
+    { href: '/purchase-orders', label: 'Purchase orders', icon: ClipboardList, perm: 'purchases:view' },
     { href: '/purchases', label: 'Purchases', icon: Truck, perm: 'purchases:view' },
   ] },
   { title: 'People', items: [

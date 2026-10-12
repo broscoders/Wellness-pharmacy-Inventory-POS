@@ -19,6 +19,8 @@ export default function PurchasesPage() {
   const [q, setQ] = useState('');
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
+  const [poId, setPoId] = useState(null);
+  useEffect(() => { const id = new URLSearchParams(window.location.search).get('po'); if (id) { setPoId(id); setCreating(true); } }, []);
   const [openId, setOpenId] = useState(null);
 
   const seq = useRef(0); // only the newest request may update the screen
@@ -52,7 +54,7 @@ export default function PurchasesPage() {
             <div className="flex gap-2"><Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button><Button variant="secondary" size="sm" disabled={page >= meta.pages} onClick={() => setPage(page + 1)}>Next</Button></div></div>
         )}
       </Card>
-      {creating && <NewPurchase onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
+      {creating && <NewPurchase poId={poId} onClose={() => { setCreating(false); setPoId(null); }} onSaved={() => { setCreating(false); load(); }} />}
       {openId && <PurchaseDetail id={openId} onClose={() => setOpenId(null)} onChanged={load} />}
     </>
   );
@@ -63,14 +65,30 @@ const n = (v) => Number(v) || 0;
 const baseOf = (l) => n(l.box) * unitsPerBox(l.med) + n(l.strip) * (l.med.unitsPerStrip || 1) + n(l.unit);
 const lineTotal = (l) => round2((n(l.pricePerBox) * baseOf(l)) / unitsPerBox(l.med) * (1 - n(l.discountPercent) / 100));
 
-function NewPurchase({ onClose, onSaved }) {
+function NewPurchase({ onClose, onSaved, poId }) {
   const [suppliers, setSuppliers] = useState([]);
   const [f, setF] = useState({ supplier: '', supplierInvoiceNo: '', purchaseDate: new Date().toISOString().slice(0, 10), discount: '', paidAmount: '', paymentMethod: 'cash', notes: '' });
   const [lines, setLines] = useState([]);
+  const [po, setPo] = useState(poId || '');
+  const [orders, setOrders] = useState([]);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => { api('/suppliers', { params: { active: 'true', limit: 100 } }).then((r) => setSuppliers(r.data)).catch(() => {}); }, []);
+  // Receiving against an order: fills the supplier and the lines still to come (batch and expiry are typed from the packs).
+  const loadOrder = useCallback(async (id) => {
+    if (!id) return;
+    try {
+      const o = (await api(`/purchase-orders/${id}`)).data;
+      setF((x) => ({ ...x, supplier: o.supplier }));
+      setLines(o.items.map((i) => {
+        const left = Math.max(i.orderedBoxes - Math.floor(i.receivedBase / (i.unitsPerBox || 1)), 0);
+        return { ...blankLine(i.medicine), box: left || '', pricePerBox: i.costPerBox || i.medicine.purchasePrice || '' };
+      }));
+    } catch (e) { setErr(e.message); }
+  }, []);
+  useEffect(() => { if (poId) loadOrder(poId); }, [poId, loadOrder]);
+  useEffect(() => { if (f.supplier) api('/purchase-orders', { params: { supplier: f.supplier, status: 'open', limit: 50 } }).then((r) => setOrders(r.data.filter((o) => o.status !== 'draft'))).catch(() => {}); else setOrders([]); }, [f.supplier]);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const setLine = (i, patch) => setLines((ls) => ls.map((l, k) => (k === i ? { ...l, ...patch } : l)));
 
@@ -86,7 +104,7 @@ function NewPurchase({ onClose, onSaved }) {
         method: 'POST',
         body: {
           supplier: f.supplier, supplierInvoiceNo: f.supplierInvoiceNo || undefined, purchaseDate: f.purchaseDate || undefined, discount: n(f.discount) || undefined,
-          paidAmount: n(f.paidAmount), paymentMethod: f.paymentMethod, notes: f.notes || undefined,
+          paidAmount: n(f.paidAmount), paymentMethod: f.paymentMethod, notes: f.notes || undefined, purchaseOrder: po || undefined,
           items: lines.map((l) => ({ medicine: l.med._id, batchNumber: l.batchNumber, expiryDate: l.expiryDate, quantity: { box: n(l.box), strip: n(l.strip), unit: n(l.unit) }, pricePerBox: n(l.pricePerBox), discountPercent: n(l.discountPercent) || undefined })),
         },
       });
@@ -102,6 +120,7 @@ function NewPurchase({ onClose, onSaved }) {
         <Field label="Supplier *"><Select value={f.supplier} onChange={set('supplier')}><option value="">Select...</option>{suppliers.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}</Select></Field>
         <Field label="Supplier invoice no."><Input value={f.supplierInvoiceNo} onChange={set('supplierInvoiceNo')} /></Field>
         <Field label="Date"><Input type="date" value={f.purchaseDate} onChange={set('purchaseDate')} /></Field>
+        {orders.length > 0 && <Field label="Receive against order"><Select value={po} onChange={(e) => { setPo(e.target.value); if (e.target.value) loadOrder(e.target.value); }}><option value="">No order</option>{orders.map((o) => <option key={o._id} value={o._id}>{o.poNo} ({o.status})</option>)}</Select></Field>}
         <Field label="Add medicine"><MedicineSearch placeholder="Search to add a line..." onPick={(m) => setLines((ls) => [...ls, blankLine(m)])} /></Field>
       </div>
 

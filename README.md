@@ -30,6 +30,8 @@ Remaining before go-live: deploy to Vercel, create the owner account on the prod
 - **Setup:** shop name/address/phone/license printed on receipts (Shop settings), **bulk import of medicines + opening stock from CSV/Excel-saved file**, staff roles, change password.
 - **Safety:** go-live clean-up (`reset:data`), **backup and restore** scripts.
 
+- **Control:** cash closing (shifts) with expected vs counted cash, purchase orders linked to purchases, substitute (same generic) suggestions at the counter.
+
 ## Tests
 
 ```powershell

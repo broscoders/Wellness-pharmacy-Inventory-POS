@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { loadCache, saveCache } from '@/lib/catalogDb';
-import { findByBarcode, prepare, search as runSearch, takeLocal } from '@/lib/search';
+import { findByBarcode, prepare, search as runSearch, substitutes as runSubstitutes, takeLocal } from '@/lib/search';
 
 // The whole medicine list lives in the browser. Searching never waits for the server.
 //   first visit : one request loads everything (about a second for 5,000 medicines)
@@ -134,6 +134,7 @@ export function CatalogProvider({ children }) {
       get: (id) => mapRef.current.get(id),
       search: (q, opts) => runSearch(items, q, opts),
       byBarcode: (code) => findByBarcode(items, code),
+      substitutes: (med) => runSubstitutes(items, med),
       applySale,
       refresh: () => sync({ force: true }),
     };

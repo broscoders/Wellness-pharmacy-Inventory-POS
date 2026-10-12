@@ -8,6 +8,7 @@ const { getPagination, pageMeta, escapeRegex } = require('../utils/pagination');
 const { parseExpiry } = require('../utils/units');
 const { createPurchase, createPurchaseReturn } = require('../services/purchase.service');
 const { objectId } = require('./medicine.controller');
+const { assertReceivable, applyReceipt } = require('../services/po.service');
 
 const qty = z.object({ box: z.number().min(0).optional(), strip: z.number().min(0).optional(), unit: z.number().min(0).optional() });
 
@@ -27,6 +28,7 @@ const createSchema = z.object({
   paidAmount: z.number().min(0).optional(),
   paymentMethod: z.enum(['cash', 'card', 'bank_transfer']).optional(),
   notes: z.string().trim().max(300).optional(),
+  purchaseOrder: objectId.optional(), // receive against an order: the order's progress is updated
 });
 
 const returnSchema = z.object({
@@ -35,7 +37,12 @@ const returnSchema = z.object({
 });
 
 const create = asyncHandler(async (req, res) => {
+  if (req.body.purchaseOrder) await assertReceivable(req.body.purchaseOrder, req.body.supplier);
   const purchase = await createPurchase(req.body, req.user);
+  if (req.body.purchaseOrder) {
+    await Purchase.updateOne({ _id: purchase._id }, { $set: { purchaseOrder: req.body.purchaseOrder } });
+    await applyReceipt(req.body.purchaseOrder, purchase.items);
+  }
   await audit(req, 'purchase.create', 'Purchase', purchase._id, { purchaseNo: purchase.purchaseNo, total: purchase.total, due: purchase.dueAmount });
   res.status(201).json({ success: true, data: purchase });
 });

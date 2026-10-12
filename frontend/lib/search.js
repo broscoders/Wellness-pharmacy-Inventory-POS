@@ -177,3 +177,30 @@ export function parseDiscount(text, subtotal) {
   if (!Number.isFinite(v) || v < 0) return 0;
   return Math.min(Math.round((v + Number.EPSILON) * 100) / 100, subtotal);
 }
+
+// ---------- substitutes: same active ingredient(s), different brand ----------
+// "Paracetamol + Caffeine" and "caffeine / paracetamol" are the same combination.
+export function genericKey(g) {
+  return String(g ?? '').toLowerCase().split(/\s*(?:\+|\/|&|,|\band\b)\s*/).map(normalize).filter(Boolean).sort().join('|');
+}
+// "Panadol 500mg" -> "500mg"; null when the name carries no strength.
+export function strengthOf(name) {
+  const m = /(\d+(?:\.\d+)?)\s*(mg|mcg|g|ml|iu|%)/i.exec(String(name ?? ''));
+  return m ? `${parseFloat(m[1])}${m[2].toLowerCase()}` : null;
+}
+/**
+ * Other brands with the same generic name that can be sold right now, same strength first, then the best sellers.
+ * It only suggests: whether a substitute is acceptable for this patient is the pharmacist's decision.
+ */
+export function substitutes(items, med, { limit = 8, now = Date.now() } = {}) {
+  const key = genericKey(med.genericName);
+  if (!key) return [];
+  const strength = strengthOf(med.name);
+  const sellable = (it) => (it.batches || []).some(([q, e]) => q > 0 && e >= now);
+  return items
+    .filter((it) => it._id !== med._id && genericKey(it.genericName) === key && sellable(it))
+    .map((it) => ({ it, same: !!strength && strengthOf(it.name) === strength }))
+    .sort((a, b) => Number(b.same) - Number(a.same) || (b.it.pop || 0) - (a.it.pop || 0) || byName(a.it, b.it))
+    .slice(0, limit)
+    .map(({ it, same }) => ({ ...it, sameStrength: same }));
+}

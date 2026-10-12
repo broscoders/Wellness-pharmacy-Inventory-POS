@@ -20,14 +20,18 @@ Legend: **Done** = built and covered by tests, **New** = added beyond the first 
 | 14 | Staff and security | Done | RBAC, audit log, rate limits, bcrypt, short-lived tokens |
 | 15 | Business rules | Done | All rules in the blueprint are enforced on the server |
 | 16 | Phases 1-6 | Done | |
+| 18 | **Cash closing (shifts)** | New | Open drawer with counted cash, cash in/out with reason, system-expected cash, counted vs expected, mandatory note on any difference, owner sees all shifts |
+| 19 | **Purchase orders** | New | One-click draft from low stock per supplier, edit, send, print, receive stock against the order (partial deliveries tracked), cancel with reason |
+| 20 | **Substitute suggestion** | New | Out-of-stock medicine shows in-stock brands with the same generic, same strength first |
 | 17 | Operations | Done + New | Backup/restore, demo data, go-live reset, import. **New:** automated tests for catalog, idempotent checkout and POS screen |
 
 ## Recommended next steps (not built yet, in priority order)
-1. **Daily cash closing:** opening cash, expected vs counted cash per cashier shift, difference report. The biggest remaining control for a shop owner.
-2. **Purchase orders:** turn the reorder list into a PO per supplier (print/WhatsApp), then receive against it.
-3. **Barcode label printing** for medicines that arrive without a barcode.
-4. **Udhaar reminders** by SMS/WhatsApp for overdue balances.
-5. **Customer-wise price lists / loyalty** if the client asks.
-6. **Offline selling** (queue bills while the internet is down). Only worth it if the shop's internet is unreliable, because it adds complexity around stock conflicts.
-7. **Multi-branch** (branch field on stock and sales, transfers). The current design is single branch by request.
-8. **Regulatory extras** if required locally: controlled-drug register, drug-license expiry reminders.
+1. **Barcode label printing** for medicines that arrive without a barcode.
+2. **Udhaar reminders** by SMS/WhatsApp for overdue balances; receipt on WhatsApp.
+3. **Near-expiry actions:** return-to-supplier list and discount suggestions before expiry.
+4. **Automatic daily backup** and a daily owner summary (sales, cash difference, low stock, expiries).
+5. **Tax / FBR integration** if the client needs it (confirm requirement first).
+6. **Customer price lists / loyalty** and **refill reminders** for chronic patients.
+7. **Offline selling** (queue bills while the internet is down). Only if the shop's internet is unreliable.
+8. **Multi-branch** (branch on stock and sales, transfers). The current design is single branch by request.
+9. **Regulatory extras** if required locally: controlled-drug register, drug-license expiry reminders.

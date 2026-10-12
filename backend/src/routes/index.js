@@ -14,11 +14,13 @@ router.use('/medicines', require('./medicine.routes'));
 router.use('/inventory', require('./inventory.routes'));
 router.use('/sales', require('./sale.routes'));
 router.use('/purchases', require('./purchase.routes'));
+router.use('/purchase-orders', require('./purchaseOrder.routes'));
 router.use('/dashboard', require('./dashboard.routes'));
 router.use('/prescriptions', require('./prescription.routes'));
 router.use('/expenses', require('./expense.routes'));
 router.use('/audit', require('./audit.routes'));
 router.use('/reports', require('./report.routes'));
 router.use('/settings', require('./setting.routes'));
+router.use('/shifts', require('./shift.routes'));
 
 module.exports = router;

@@ -8,7 +8,7 @@ const audit = require('../utils/audit');
 const { getPagination, pageMeta } = require('../utils/pagination');
 const { toBase, fromBase, parseExpiry, unitsPerBox } = require('../utils/units');
 const { applyMovement } = require('../services/stock.service');
-const { expiryStatus, DAY, getAlerts } = require('../services/inventory.service');
+const { expiryStatus, DAY, getAlerts, suggestedBoxes } = require('../services/inventory.service');
 const { objectId } = require('./medicine.controller');
 
 const qtySchema = z.object({
@@ -150,8 +150,7 @@ const reorder = asyncHandler(async (req, res) => {
   for (const r of rows) {
     const m = byId.get(String(r._id)); if (!m) continue;
     const upb = unitsPerBox(m);
-    const need = Math.max((m.minStockLevel || 0) * 2 - r.available, upb);
-    const boxes = Math.ceil(need / upb);
+    const boxes = suggestedBoxes(m, r.available);
     const name = m.supplier?.name || 'No supplier set';
     const g = groups.get(name) || { supplier: name, phone: m.supplier?.phone || '', items: [], total: 0 };
     const cost = Math.round(boxes * (m.purchasePrice || 0));

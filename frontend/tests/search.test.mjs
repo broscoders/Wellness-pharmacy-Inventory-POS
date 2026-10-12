@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { prepare, search, stockOf, takeLocal, parseQuery, findByBarcode, parseDiscount, normalize } from '../lib/search.js';
+import { substitutes, genericKey, strengthOf, prepare, search, stockOf, takeLocal, parseQuery, findByBarcode, parseDiscount, normalize } from '../lib/search.js';
 
 const day = 86400000;
 const now = Date.now();
@@ -98,4 +98,28 @@ test('search over 5,000 medicines takes a few milliseconds', () => {
   const t1 = performance.now(); search(big, 'medicinx 99'); const typo = performance.now() - t1;
   console.log(`      typo search: ${typo.toFixed(1)} ms`);
   assert.ok(typo < 150);
+});
+
+test('generic keys ignore order, case and separators', () => {
+  assert.equal(genericKey('Paracetamol + Caffeine'), genericKey('caffeine / PARACETAMOL'));
+  assert.notEqual(genericKey('Paracetamol'), genericKey('Paracetamol + Caffeine'));
+  assert.equal(genericKey(''), '');
+  assert.equal(strengthOf('Panadol 500mg'), '500mg');
+  assert.equal(strengthOf('Calpol Syrup 120 ml'), '120ml');
+  assert.equal(strengthOf('Panadol Extra'), null);
+});
+test('substitutes: same generic, in stock, same strength first, never itself', () => {
+  const pool = [
+    mk('a', 'Panadol 500mg', { genericName: 'Paracetamol', pop: 10 }),
+    mk('b', 'Calpol 500mg', { genericName: 'paracetamol', pop: 5 }),
+    mk('c', 'Fevadol 650mg', { genericName: 'Paracetamol', pop: 90 }),
+    mk('d', 'Dolo 500mg', { genericName: 'Paracetamol', batches: [] }),                 // out of stock: never suggested
+    mk('e', 'Panadol Extra', { genericName: 'Paracetamol + Caffeine', pop: 99 }),       // different combination
+    mk('f', 'Brufen 400mg', { genericName: 'Ibuprofen' }),
+    mk('g', 'Old 500mg', { genericName: 'Paracetamol', batches: [[50, now - day]] }),   // expired only
+  ];
+  const r = substitutes(pool, pool[0]);
+  assert.deepEqual(r.map((x) => x.name), ['Calpol 500mg', 'Fevadol 650mg']);
+  assert.equal(r[0].sameStrength, true); assert.equal(r[1].sameStrength, false);
+  assert.deepEqual(substitutes(pool, mk('z', 'No generic', { genericName: '' })), []);
 });

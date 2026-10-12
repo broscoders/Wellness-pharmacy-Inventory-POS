@@ -16,6 +16,7 @@ const ALL = [
   'reports:view',
   'audit:view',
   'settings:manage',
+  'shifts:use', 'shifts:manage',
 ];
 
 const ROLE_PERMISSIONS = {
@@ -28,6 +29,7 @@ const ROLE_PERMISSIONS = {
     'customers:view',
     'pos:use', 'sales:view', 'sales:return', 'sales:discount',
     'prescriptions:view', 'prescriptions:manage',
+    'shifts:use',
   ],
   cashier: [
     'dashboard:view',
@@ -36,6 +38,7 @@ const ROLE_PERMISSIONS = {
     'customers:view', 'customers:manage',
     'pos:use', 'sales:view', 'sales:discount',
     'payments:manage',
+    'shifts:use',
   ],
   inventory: [
     'dashboard:view',

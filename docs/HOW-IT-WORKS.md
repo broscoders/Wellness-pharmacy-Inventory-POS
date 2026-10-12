@@ -27,6 +27,22 @@ The server still has the last word: when a bill is completed, the server re-chec
 
 If the customer pays the exact amount in cash, the cashier types nothing: F9 completes the bill with exact cash. For bigger notes there are quick buttons and the change is shown. Discount accepts an amount (`50`) or a percentage (`10%`).
 
+## Cash closing (every cashier, every shift)
+1. **Start of shift:** Cash closing > count the drawer > enter the amount > Open shift.
+2. **During the day:** sell as usual. Money that is not a sale (owner takes cash, tea, change from the bank) goes in "Cash in / out" with a reason.
+3. **End of shift:** count the cash and type the total (without looking at the expected figure). The system compares it with what the drawer should hold: opening cash + cash sales + udhaar payments received - cash refunds - supplier payments - cash expenses - cash taken out. Card, bank and udhaar sales are not cash and are shown separately.
+4. **Any difference needs a written reason.** The owner sees every shift, who closed it, and the difference.
+The POS shows a reminder if no shift is open. A cashier can only see their own shifts.
+
+## Purchase orders
+- **Purchase orders > From low stock > pick a supplier:** a draft order is made with that supplier's low and finished medicines, in whole boxes. Change quantities, add medicines, set an expected date.
+- **Mark as sent** (locks it), **Print** to give or send to the supplier.
+- When the goods arrive: **Receive stock** opens the purchase form already filled in. Add batch number and expiry from the packs. Partial deliveries are tracked ("2 of 3 boxes received") and the order closes itself when everything has come.
+- Cancelling needs a reason; finished orders cannot be changed.
+
+## Substitutes
+If a medicine is out of stock or expired, the POS lists other brands with the same generic name that are in stock, same strength first. There is also an "Alternatives" link on every bill line. It only suggests; the pharmacist decides whether a substitute is suitable.
+
 ## Safety rules the system enforces
 - Expired medicine can never be sold (checked again on the server).
 - The earliest-expiry batch is sold first (FEFO).

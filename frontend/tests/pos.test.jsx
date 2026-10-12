@@ -188,3 +188,24 @@ async function user_type_check() {
   await user.type(searchBox(), 'pana');
   expect(within(screen.getByRole('listbox')).getAllByRole('option')).toHaveLength(1);
 }
+
+describe('substitutes', () => {
+  it('an out-of-stock medicine offers in-stock brands of the same generic', async () => {
+    const user = userEvent.setup();
+    CATALOG.push(med('m5', 'Ibugesic 400mg', { genericName: 'Ibuprofen' }), med('m6', 'Old Ibu 200mg', { genericName: 'Ibuprofen', batches: [] }));
+    CATALOG[2].genericName = 'Ibuprofen';
+    try {
+      render(<AuthProvider><CatalogProvider><PosPage /></CatalogProvider></AuthProvider>);
+      await screen.findByText(/medicines ready/);
+      await user.type(searchBox(), 'brufen{Enter}');
+      expect(await screen.findByText(/is not available/)).toBeInTheDocument();
+      const opts = within(screen.getByRole('listbox')).getAllByRole('option');
+      expect(opts).toHaveLength(1);
+      expect(opts[0]).toHaveTextContent('Ibugesic 400mg');
+      expect(opts[0]).toHaveTextContent('Same strength');
+      await user.keyboard('{Enter}'); // Enter takes the highlighted alternative
+      expect(screen.getByLabelText('Quantity')).toHaveValue(1);
+      expect(screen.queryByText(/is not available/)).toBeNull();
+    } finally { CATALOG.length = 4; CATALOG[2].genericName = ''; }
+  });
+});

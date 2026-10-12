@@ -19,6 +19,7 @@ const purchaseSchema = new mongoose.Schema(
     supplier: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', required: true, index: true },
     supplierName: String,
     supplierInvoiceNo: { type: String, trim: true },
+    purchaseOrder: { type: mongoose.Schema.Types.ObjectId, ref: 'PurchaseOrder' },
     purchaseDate: { type: Date, default: Date.now, index: true },
     items: [itemSchema],
     subtotal: Number,

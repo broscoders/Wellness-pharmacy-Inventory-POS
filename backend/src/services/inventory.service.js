@@ -87,4 +87,11 @@ async function getAlerts() {
   };
 }
 
-module.exports = { stockByMedicine, decorateMedicine, expiryStatus, getAlerts, DAY };
+// How many whole boxes to order for a medicine that is low/out: enough to reach TWICE the minimum level, at least one box.
+function suggestedBoxes(med, available) {
+  const upb = (med.stripsPerBox || 1) * (med.unitsPerStrip || 1);
+  const need = Math.max((med.minStockLevel || 0) * 2 - available, upb);
+  return Math.ceil(need / upb);
+}
+
+module.exports = { suggestedBoxes, stockByMedicine, decorateMedicine, expiryStatus, getAlerts, DAY };
