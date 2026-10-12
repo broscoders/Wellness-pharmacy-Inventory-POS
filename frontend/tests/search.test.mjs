@@ -133,3 +133,28 @@ test('shelf location is shown and searchable', () => {
   assert.deepEqual(search([a, b], 'rack c').map((i) => i.name)[0], 'Zinc Tablet');
   assert.deepEqual(search([a, b], 'right').map((i) => i.name), ['Vitamin D']);
 });
+
+import { waNumber, waLink, udhaarMessage, dailyMessage } from '../lib/whatsapp.js';
+test('WhatsApp numbers are turned into international format', () => {
+  assert.equal(waNumber('0300-1234567'), '923001234567');
+  assert.equal(waNumber('+92 300 1234567'), '923001234567');
+  assert.equal(waNumber('923001234567'), '923001234567');
+  assert.equal(waNumber('0092 300 1234567'), '923001234567');
+  assert.equal(waNumber('3001234567'), '923001234567');
+  assert.equal(waNumber('+44 7700 900123'), '447700900123');
+  assert.equal(waNumber(''), '');
+  assert.equal(waNumber('12'), '');
+  assert.equal(waNumber(undefined), '');
+});
+test('WhatsApp link carries the encoded message', () => {
+  const l = waLink('0300-1234567', 'Hello & welcome\nbye');
+  assert.ok(l.startsWith('https://wa.me/923001234567?text='));
+  assert.ok(l.includes(encodeURIComponent('Hello & welcome\nbye')));
+  assert.ok(waLink('', 'x').startsWith('https://wa.me/?text='));
+});
+test('messages mention the name and amount', () => {
+  const m = udhaarMessage({ name: 'Ali', balance: 12500, shop: 'Wellness' });
+  assert.ok(m.includes('Ali') && m.includes('Rs 12,500') && m.includes('Wellness'));
+  const d = dailyMessage({ shopName: 'Wellness', date: '2026-10-12', sales: { total: 1000, bills: 4, cash: 600, card: 100, bank: 0, credit: 300 }, profit: { grossProfit: 200, grossMarginPercent: 20, expenses: 50, netProfit: 150 }, udhaar: { given: 300, received: 100, totalOwed: 900 }, payables: 400, cash: { shiftsClosed: 1, difference: -50, shortOrExtra: [{ user: 'Ali', difference: -50 }] }, stockAlerts: { outOfStock: 1, lowStock: 2, expired: 0, nearExpiry30: 3 }, topSellers: [{ name: 'Panadol' }] });
+  assert.ok(d.includes('Rs 1,000') && d.includes('CASH DIFFERENCE') && d.includes('Net profit today: Rs 150') && d.includes('Panadol'));
+});

@@ -54,6 +54,18 @@ Staff salaries > add each person with their monthly salary. For every month the 
 ## Where is the medicine? (shelf location)
 Each medicine can have a rack, row and side ("Rack C | Row 2 | Left"), a dosage form, a storage type (fridge items show a warning) and an MRP. The location is shown on the POS list and on the bill, and typing "rack c" at the counter finds everything on that rack. The system refuses a sale price above MRP. Import from Excel accepts the same columns.
 
+## Barcode labels
+Barcode labels > **Give barcodes to all without one**: every medicine that has no barcode gets the shop's own EAN-13 number (starting with 20, reserved worldwide for in-store use). Search medicines, set how many labels each needs, choose A4 label sheet (3 x 8) or a 50 x 30 mm roll, and Print. Stick the label on the pack: from then on a scanner adds it at the POS like any other medicine.
+
+## Udhaar reminders
+Udhaar reminders lists customers who owe money and have not paid for 7 / 15 / 30 / 60+ days (counted from their last payment). **WhatsApp** opens WhatsApp with the message already written (name, amount, shop name); the staff member only presses Send. The date of the last reminder is remembered so nobody is nagged by mistake. Nothing is sent automatically. The POS receipt window also has a WhatsApp button to send the bill total to a customer.
+
+## Expiry returns
+Expiry returns shows expired stock and near-expiry stock per supplier. For each batch it estimates whether it will sell before it expires, using the last 30 days of sales and earliest-expiry-first selling. Batches that will not are the ones to return to the supplier or discount now. Print the list or send it on WhatsApp. When the supplier accepts, record it in Purchases (Return).
+
+## Daily summary and backup
+**Daily summary** gathers the day: sales and how customers paid, gross and net profit, expenses, udhaar given/received, cash drawer differences, stock alerts, top sellers and staff sales. **Send on WhatsApp** shares it as text. **Settings > Backup > Download backup** saves the whole database as one file (do it weekly; the dashboard warns the owner after 7 days). To restore: `npm run restore -- <file.json> --yes` (with CONFIRM_DB_NAME set). Keep the file private: it contains staff password hashes.
+
 ## Substitutes
 If a medicine is out of stock or expired, the POS lists other brands with the same generic name that are in stock, same strength first. There is also an "Alternatives" link on every bill line. It only suggests; the pharmacist decides whether a substitute is suitable.
 

@@ -31,6 +31,7 @@ Remaining before go-live: deploy to Vercel, create the owner account on the prod
 - **Safety:** go-live clean-up (`reset:data`), **backup and restore** scripts.
 
 - **Finance:** profit & margin %, expenses share, 6-month trend, price check, staff salaries (payroll) linked to expenses; medicines carry shelf location, storage and MRP.
+- **Operations:** barcode label printing with shop-made EAN-13 codes, udhaar WhatsApp reminders, expiry return lists with sell-through estimate, daily summary for the owner, in-app backup download (restorable with `npm run restore`).
 - **Control:** cash closing (shifts) with expected vs counted cash, purchase orders linked to purchases, substitute (same generic) suggestions at the counter.
 
 ## Tests

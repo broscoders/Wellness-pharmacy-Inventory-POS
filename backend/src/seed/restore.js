@@ -20,11 +20,14 @@ const { EJSON } = mongoose.mongo.BSON;
 
 (async () => {
   const folder = process.argv.slice(2).find((a) => !a.startsWith('--'));
-  if (!folder || !fs.existsSync(path.join(folder, 'manifest.json'))) {
-    console.error('Give the backup folder (it must contain manifest.json). Example:\n  npm run restore -- backups\\wellness_pharmacy_prod-2026-10-10-21-00-00 --yes');
+  // Two kinds of backup: a folder from `npm run backup`, or ONE .json file downloaded from the app (Settings > Backup).
+  const isFile = !!folder && fs.existsSync(folder) && fs.statSync(folder).isFile();
+  if (!folder || !(isFile || fs.existsSync(path.join(folder, 'manifest.json')))) {
+    console.error('Give the backup folder (it must contain manifest.json) or the backup .json file. Example:\n  npm run restore -- backups\\wellness_pharmacy_prod-2026-10-10-21-00-00 --yes\n  npm run restore -- C:\\Downloads\\wellness-backup-2026-10-12.json --yes');
     process.exit(1);
   }
-  const manifest = JSON.parse(fs.readFileSync(path.join(folder, 'manifest.json'), 'utf8'));
+  const bundle = isFile ? JSON.parse(fs.readFileSync(folder, 'utf8')) : null;
+  const manifest = bundle ? bundle.manifest : JSON.parse(fs.readFileSync(path.join(folder, 'manifest.json'), 'utf8'));
   await connectDB();
   const dbName = mongoose.connection.name;
   console.log(`Backup of "${manifest.database}" taken ${manifest.createdAt}`);
@@ -41,7 +44,8 @@ const { EJSON } = mongoose.mongo.BSON;
 
   const db = mongoose.connection.db;
   for (const name of Object.keys(manifest.collections)) {
-    const docs = EJSON.parse(fs.readFileSync(path.join(folder, `${name}.json`), 'utf8'), { relaxed: false });
+    const text = bundle ? JSON.stringify(bundle.collections[name] || []) : fs.readFileSync(path.join(folder, `${name}.json`), 'utf8');
+    const docs = EJSON.parse(text, { relaxed: false });
     await db.collection(name).deleteMany({});
     if (docs.length) await db.collection(name).insertMany(docs);
     console.log(`  restored ${name}: ${docs.length}`);

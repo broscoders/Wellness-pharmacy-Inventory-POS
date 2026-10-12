@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { KeyRound, LayoutDashboard, ShoppingCart, Receipt, Pill, LogOut, Menu, X, Boxes, Truck, Users, Building2, FileText, Wallet, BarChart3, Tags, UserCog, ScrollText, Settings, Landmark, ClipboardList, TrendingUp, Users2 } from 'lucide-react';
+import { KeyRound, LayoutDashboard, ShoppingCart, Receipt, Pill, LogOut, Menu, X, Boxes, Truck, Users, Building2, FileText, Wallet, BarChart3, Tags, UserCog, ScrollText, Settings, Landmark, ClipboardList, TrendingUp, Users2, Barcode as BarcodeIcon, PackageX, BellRing, CalendarCheck } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Spinner } from '@/components/ui';
 import ChangePassword from '@/components/ChangePassword';
@@ -19,16 +19,20 @@ const GROUPS = [
   { title: 'Stock', items: [
     { href: '/medicines', label: 'Medicines', icon: Pill, perm: 'medicines:view' },
     { href: '/inventory', label: 'Inventory & Expiry', icon: Boxes, perm: 'inventory:view' },
+    { href: '/expiry-returns', label: 'Expiry returns', icon: PackageX, perm: 'inventory:view' },
+    { href: '/labels', label: 'Barcode labels', icon: BarcodeIcon, perm: 'medicines:view' },
     { href: '/purchase-orders', label: 'Purchase orders', icon: ClipboardList, perm: 'purchases:view' },
     { href: '/purchases', label: 'Purchases', icon: Truck, perm: 'purchases:view' },
   ] },
   { title: 'People', items: [
     { href: '/customers', label: 'Customers (udhaar)', icon: Users, perm: 'customers:view' },
+    { href: '/udhaar', label: 'Udhaar reminders', icon: BellRing, perm: 'customers:view' },
     { href: '/suppliers', label: 'Suppliers', icon: Building2, perm: 'suppliers:view' },
     { href: '/prescriptions', label: 'Prescriptions', icon: FileText, perm: 'prescriptions:view' },
   ] },
   { title: 'Owner', items: [
     { href: '/expenses', label: 'Expenses', icon: Wallet, perm: 'expenses:view' },
+    { href: '/daily', label: 'Daily summary', icon: CalendarCheck, perm: 'reports:view' },
     { href: '/finance', label: 'Finance & profit', icon: TrendingUp, perm: 'reports:view' },
     { href: '/payroll', label: 'Staff salaries', icon: Users2, perm: 'payroll:manage' },
     { href: '/reports', label: 'Reports', icon: BarChart3, perm: 'reports:view' },

@@ -35,3 +35,20 @@ body { background: var(--color-paper); color: var(--color-ink); font-family: var
   .print-wide .r { text-align: right; }
   .no-print { display: none !important; }
 }
+
+/* ---- Barcode labels (Labels page) ---- */
+.label { box-sizing: border-box; overflow: hidden; padding: 1.5mm 2.5mm; color: #000; background: #fff; border: 1px dashed #ccc; }
+.label-name { font-size: 8.5px; font-weight: 700; line-height: 1.15; max-height: 2.3em; overflow: hidden; }
+.label-shop { font-size: 7px; text-transform: uppercase; letter-spacing: .04em; color: #444; }
+.label-price { font-size: 10px; font-weight: 700; text-align: right; } .label-price span { font-weight: 400; font-size: 7px; }
+.label-sheet { display: grid; grid-template-columns: repeat(3, 63mm); grid-auto-rows: 34mm; }
+.label-roll { display: block; }
+.label-roll .label { width: 50mm; height: 30mm; }
+.label-preview .label-sheet { grid-template-columns: repeat(3, 1fr); grid-auto-rows: auto; gap: 6px; } .label-preview .label { border-radius: 4px; min-height: 100px; }
+.label-preview .label-roll .label { width: 200px; height: auto; margin-bottom: 6px; }
+@media print {
+  .print-root.print-labels { width: 210mm; padding: 8mm 6mm; }
+  .print-root.print-labels.print-roll { width: 50mm; padding: 0; }
+  .print-labels .label { border: 0; break-inside: avoid; }
+  .print-labels .label-roll .label { break-after: page; page-break-after: always; }
+}

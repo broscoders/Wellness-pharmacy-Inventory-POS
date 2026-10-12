@@ -27,15 +27,17 @@ Legend: **Done** = built and covered by tests, **New** = added beyond the first 
 | 22 | **Staff salaries (payroll)** | New | Staff list, monthly salary sheet, salary / advance / bonus payments, void with reason; every payment is also an expense so profit is right |
 | 23 | **Price check** | New | Flags medicines sold below cost, with very low margin, above MRP, or with no price; live margin preview in the medicine form |
 | 24 | **Medicine details** | New | Rack / row / side location (shown and searchable at the counter), dosage form, storage (fridge warning), MRP with sale-price limit |
+| 25 | **Barcode labels** | New | Shop's own EAN-13 barcodes for medicines without one (20xxxxxxxxxxx, never clashes with manufacturers), print on A4 label sheets or a 50x30 mm roll, optional price and shop name |
+| 26 | **Udhaar reminders** | New | Overdue customers (days since last payment), one-tap WhatsApp with the message written, remembers when each was last reminded. WhatsApp receipt from the POS |
+| 27 | **Expiry returns** | New | Expired and slow near-expiry stock grouped by supplier, with a sell-through estimate (will it sell before it expires?), print list, WhatsApp to supplier |
+| 28 | **Daily summary and backup** | New | End-of-day figures on one screen with WhatsApp text (sales, profit, cash differences, udhaar, stock alerts); in-app backup file + reminder when older than 7 days; restore from that file |
 | 17 | Operations | Done + New | Backup/restore, demo data, go-live reset, import. **New:** automated tests for catalog, idempotent checkout and POS screen |
 
 ## Recommended next steps (not built yet, in priority order)
-1. **Barcode label printing** for medicines that arrive without a barcode.
-2. **Udhaar reminders** by SMS/WhatsApp for overdue balances; receipt on WhatsApp.
-3. **Near-expiry actions:** return-to-supplier list and discount suggestions before expiry.
-4. **Automatic daily backup** and a daily owner summary (sales, cash difference, low stock, expiries).
-5. **Tax / FBR integration** if the client needs it (confirm requirement first).
-6. **Customer price lists / loyalty** and **refill reminders** for chronic patients.
-7. **Offline selling** (queue bills while the internet is down). Only if the shop's internet is unreliable.
-8. **Multi-branch** (branch on stock and sales, transfers). The current design is single branch by request.
-9. **Regulatory extras** if required locally: controlled-drug register, drug-license expiry reminders.
+1. **Automatic messages** (no tapping): needs a WhatsApp Business API or SMS provider account and monthly cost. Today a person taps Send.
+2. **Scheduled automatic backup** to cloud storage / email (needs a storage or email account). Atlas paid plans also have automatic backups.
+3. **Tax / FBR integration** if the client needs it (confirm the requirement first).
+4. **Customer price lists / loyalty** and **refill reminders** for chronic patients.
+5. **Offline selling** (queue bills while the internet is down). Only if the shop's internet is unreliable.
+6. **Multi-branch** (branch on stock and sales, transfers). The current design is single branch by request.
+7. **Regulatory extras** if required locally: controlled-drug register, drug-license expiry reminders.

@@ -24,5 +24,6 @@ router.use('/settings', require('./setting.routes'));
 router.use('/shifts', require('./shift.routes'));
 router.use('/payroll', require('./payroll.routes'));
 router.use('/finance', require('./finance.routes'));
+router.use('/ops', require('./ops.routes'));
 
 module.exports = router;

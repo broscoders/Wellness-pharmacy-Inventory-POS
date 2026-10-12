@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useSettings } from '@/context/SettingsContext';
 import Receipt from '@/components/Receipt';
+import BackupCard from '@/components/BackupCard';
 import { Button, Card, ErrorNote, Field, Input, PageHeader, Textarea } from '@/components/ui';
 
 // Example bill so the owner can see how the receipt header/footer will look.
@@ -35,6 +36,7 @@ export default function SettingsPage() {
   return (
     <>
       <PageHeader title="Shop settings" subtitle="This information is printed on every receipt" actions={<Button onClick={save} loading={busy}>Save settings</Button>} />
+      <BackupCard />
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
         <Card className="p-5">
           <ErrorNote error={err} />

@@ -9,6 +9,8 @@ import { dateOnly, dateTime, money, stockText } from '@/lib/format';
 import { baseQtyOfType, round2, sellPrice } from '@/lib/units';
 import { locationText, parseDiscount, parseQuery, stockOf } from '@/lib/search';
 import { beep } from '@/lib/beep';
+import { receiptMessage, waLink } from '@/lib/whatsapp';
+import { useSettings } from '@/context/SettingsContext';
 import { Badge, Button, Card, ErrorNote, Input, Modal, Select } from '@/components/ui';
 import Receipt from '@/components/Receipt';
 import CustomerPicker from '@/components/CustomerPicker';
@@ -26,6 +28,7 @@ const uid = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID(
 export default function PosPage() {
   const { can } = useAuth();
   const catalog = useCatalog();
+  const { settings } = useSettings();
   const searchRef = useRef(null);
   const listRef = useRef(null);
   const keySeq = useRef(0);
@@ -46,6 +49,7 @@ export default function PosPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(null);
+  const [waPhone, setWaPhone] = useState('');
   const [held, setHeld] = useState([]);
   const [heldOpen, setHeldOpen] = useState(false);
   const [prefs, setPrefs] = useState({ sound: true, autoPrint: false });
@@ -169,7 +173,7 @@ export default function PosPage() {
       lines.forEach((l) => used.set(l.id, (used.get(l.id) || 0) + l.needBase));
       if (!r.duplicate) catalog.applySale([...used].map(([id, baseQty]) => ({ id, baseQty })));
       attempt.current = { sig: '', id: '' };
-      setDone(r.data); sound('ok');
+      setDone(r.data); setWaPhone(customer?.phone || ''); sound('ok');
       if (prefs.autoPrint) setTimeout(() => window.print(), 250);
     } catch (e) { fail(e.message); } finally { setBusy(false); }
   }
@@ -204,6 +208,7 @@ export default function PosPage() {
   useEffect(() => {
     function onKey(e) {
       if (done) {
+        if (e.target?.tagName === 'INPUT' && e.target.closest?.('[role="dialog"]')) return; // typing a WhatsApp number in the receipt window must not start a new sale
         if (e.key === 'Enter') { e.preventDefault(); newSale(); }
         else if (e.key.toLowerCase() === 'p' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); window.print(); }
         return;
@@ -382,7 +387,15 @@ export default function PosPage() {
 
       <Modal open={!!done} onClose={newSale} title="Sale completed" width="max-w-sm"
         footer={<><Button variant="secondary" onClick={() => window.print()}><Printer className="h-4 w-4" /> Print <span className="text-xs text-muted">P</span></Button><Button onClick={newSale}>New sale <span className="text-xs opacity-70">Enter</span></Button></>}>
-        {done && <Receipt sale={done} />}
+        {done && (
+          <>
+            <div className="no-print mb-3 flex items-center gap-2">
+              <Input className="h-9 flex-1" inputMode="tel" placeholder="Customer WhatsApp number (optional)" value={waPhone} onChange={(e) => setWaPhone(e.target.value)} aria-label="Customer WhatsApp number" />
+              <a href={waLink(waPhone, receiptMessage({ shop: settings.shopName, sale: done }))} target="_blank" rel="noreferrer"><Button variant="secondary" size="sm">WhatsApp</Button></a>
+            </div>
+            <Receipt sale={done} />
+          </>
+        )}
       </Modal>
     </div>
   );

@@ -11,6 +11,7 @@ const customerSchema = new mongoose.Schema(
     balance: { type: Number, default: 0 },
     creditLimit: { type: Number, default: 0, min: 0 },
     isActive: { type: Boolean, default: true },
+    lastReminderAt: Date, // when we last asked this customer to pay (WhatsApp), so nobody is nagged daily
   },
   { timestamps: true }
 );

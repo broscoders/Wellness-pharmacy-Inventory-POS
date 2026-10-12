@@ -6,6 +6,7 @@ const audit = require('../utils/audit');
 const { getPagination, pageMeta, escapeRegex } = require('../utils/pagination');
 const { stockByMedicine, decorateMedicine } = require('../services/inventory.service');
 const { buildCatalog } = require('../services/catalog.service');
+const { internalEan13 } = require('../utils/ean');
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid id');
 const price = z.object({ box: z.number().min(0).optional(), strip: z.number().min(0).optional(), unit: z.number().min(0).optional() });
@@ -96,6 +97,23 @@ const catalog = asyncHandler(async (req, res) => {
   res.json({ success: true, ...(await buildCatalog({ since })) });
 });
 
+// Gives every medicine without a barcode the shop's own EAN-13, so it can be labelled and scanned like any other.
+const assignBarcodes = asyncHandler(async (req, res) => {
+  const { ids } = req.body;
+  const filter = { isActive: true, $or: [{ barcode: { $exists: false } }, { barcode: '' }, { barcode: null }] };
+  if (ids?.length) filter._id = { $in: ids };
+  const meds = await Medicine.find(filter).select('name').limit(500);
+  const done = [];
+  for (const m of meds) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const c = await require('../models/Counter').findOneAndUpdate({ _id: 'barcode' }, { $inc: { seq: 1 } }, { upsert: true, returnDocument: 'after' });
+      try { await Medicine.updateOne({ _id: m._id }, { $set: { barcode: internalEan13(c.seq) } }); done.push(m._id); break; } catch (e) { if (e.code !== 11000) throw e; }
+    }
+  }
+  await audit(req, 'medicine.assign_barcodes', 'Medicine', undefined, { count: done.length });
+  res.json({ success: true, assigned: done.length, remaining: Math.max((await Medicine.countDocuments({ isActive: true, $or: [{ barcode: { $exists: false } }, { barcode: '' }] })), 0) });
+});
+
 const byBarcode = asyncHandler(async (req, res) => {
   const med = await Medicine.findOne({ barcode: req.params.code, isActive: true });
   if (!med) throw ApiError.notFound('No medicine found for this barcode');
@@ -146,6 +164,7 @@ const archive = asyncHandler(async (req, res) => {
 });
 
 const { importMedicines } = require('../services/import.service');
+const assignSchema = z.object({ ids: z.array(objectId).max(500).optional() });
 const importSchema = z.object({
   rows: z.array(z.record(z.string(), z.any())).min(1, 'The file has no data rows').max(1500, 'Maximum 1500 rows per import - split the file'),
   dryRun: z.boolean().default(true),
@@ -158,4 +177,4 @@ const importRows = asyncHandler(async (req, res) => {
   res.json({ success: true, dryRun: req.body.dryRun, ...result, rows: result.rows.filter((r) => r.status !== 'create' || r.warnings.length || r.messages.length).slice(0, 500) });
 });
 
-module.exports = { list, filters, catalog, getOne, byBarcode, create, update, archive, importRows, createSchema, updateSchema, importSchema, objectId };
+module.exports = { list, filters, catalog, assignBarcodes, getOne, byBarcode, create, update, archive, importRows, createSchema, updateSchema, importSchema, assignSchema, objectId };

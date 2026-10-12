@@ -6,6 +6,7 @@ const { protect, requirePermission } = require('../middleware/auth');
 router.use(protect);
 router.get('/', requirePermission('medicines:view'), c.list);
 router.post('/import', requirePermission('medicines:manage'), requirePermission('inventory:manage'), validate(c.importSchema), c.importRows);
+router.post('/assign-barcodes', requirePermission('medicines:manage'), validate(c.assignSchema), c.assignBarcodes);
 router.get('/catalog', requirePermission('pos:use', 'medicines:view'), c.catalog);
 router.get('/filters', requirePermission('medicines:view'), c.filters);
 router.get('/barcode/:code', requirePermission('medicines:view'), c.byBarcode);

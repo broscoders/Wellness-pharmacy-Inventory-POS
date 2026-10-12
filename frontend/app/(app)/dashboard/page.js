@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { BarList, SalesChart } from '@/components/Charts';
 import { money, dateTime } from '@/lib/format';
 import { Badge, Card, ErrorNote, PageHeader, Spinner, Table } from '@/components/ui';
+import { useSettings } from '@/context/SettingsContext';
 
 function Stat({ icon: Icon, label, value, tone = 'default', note }) {
   const tones = { default: 'text-pine-dark bg-mint', warn: 'text-amber bg-amber-soft', bad: 'text-danger bg-danger-soft' };
@@ -48,6 +49,7 @@ export default function DashboardPage() {
   return (
     <>
       <PageHeader title="Dashboard" subtitle="Today at a glance" />
+      <BackupReminder />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat icon={ShoppingBag} label="Today's sales" value={money(d.todaySales)} note={`${d.todaySalesCount} invoices`} />
         {d.todayPurchases !== undefined && <Stat icon={Truck} label="Today's purchases" value={money(d.todayPurchases)} />}
@@ -95,5 +97,19 @@ export default function DashboardPage() {
         )}
       </Card>
     </>
+  );
+}
+
+// Owner only: a loud reminder when no backup has been downloaded for a week.
+function BackupReminder() {
+  const { can } = useAuth();
+  const { settings } = useSettings();
+  if (!can('settings:manage')) return null;
+  const age = settings.lastBackupAt ? Math.floor((Date.now() - new Date(settings.lastBackupAt).getTime()) / 86400000) : null;
+  if (age !== null && age <= 7) return null;
+  return (
+    <p className="mb-4 rounded-md bg-amber-soft px-4 py-3 text-sm text-amber">
+      {age === null ? 'No backup of your data has been downloaded yet.' : `Your last backup was ${age} days ago.`} <Link href="/settings" className="font-medium underline">Download a backup now</Link> so nothing is lost if the computer or the database has a problem.
+    </p>
   );
 }
