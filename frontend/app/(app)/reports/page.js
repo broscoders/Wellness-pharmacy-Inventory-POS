@@ -85,7 +85,7 @@ export default function ReportsPage() {
       {d && tab === 'profit' && (
         <Card className="max-w-2xl">
           <div className="space-y-2 p-5 text-[15px]">
-            {[['Sales (invoiced)', d.data.sales], ['Less: sales returns', -d.data.salesReturns], ['Net sales', d.data.netSales, 'b'], ['Less: purchase cost of goods sold', -d.data.purchaseCostOfGoodsSold], ['Gross profit', d.data.grossProfit, 'b'], ['Less: expenses', -d.data.expenses], ['Estimated net profit', d.data.estimatedNetProfit, 'B']].map(([l, v, b]) => (
+            {[['Sales (invoiced)', d.data.sales], ['Less: sales returns', -d.data.salesReturns], ['Net sales', d.data.netSales, 'b'], ['Less: purchase cost of goods sold', -d.data.purchaseCostOfGoodsSold], [`Gross profit (${d.data.grossMarginPercent}% margin)`, d.data.grossProfit, 'b'], [`Less: expenses (${d.data.expenseRatioPercent}% of sales)`, -d.data.expenses], [`Estimated net profit (${d.data.netMarginPercent}%)`, d.data.estimatedNetProfit, 'B']].map(([l, v, b]) => (
               <div key={l} className={`flex justify-between ${b ? 'border-t border-line pt-2 font-semibold' : ''} ${b === 'B' ? 'text-lg' : ''}`}><span>{l}</span><span className={`num ${v < 0 && b === 'B' ? 'text-danger' : ''}`}>{v < 0 ? `- ${money(-v)}` : money(v)}</span></div>
             ))}
           </div>

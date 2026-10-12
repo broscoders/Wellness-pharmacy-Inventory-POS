@@ -22,5 +22,7 @@ router.use('/audit', require('./audit.routes'));
 router.use('/reports', require('./report.routes'));
 router.use('/settings', require('./setting.routes'));
 router.use('/shifts', require('./shift.routes'));
+router.use('/payroll', require('./payroll.routes'));
+router.use('/finance', require('./finance.routes'));
 
 module.exports = router;

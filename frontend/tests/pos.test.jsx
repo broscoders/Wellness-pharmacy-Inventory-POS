@@ -209,3 +209,21 @@ describe('substitutes', () => {
     } finally { CATALOG.length = 4; CATALOG[2].genericName = ''; }
   });
 });
+
+describe('shelf location', () => {
+  it('shows rack/row/side on the list and the bill, and finds medicines by rack', async () => {
+    const user = userEvent.setup();
+    Object.assign(CATALOG[1], { rack: 'C', row: '2', side: 'Left', storage: 'fridge' });
+    try {
+      render(<AuthProvider><CatalogProvider><PosPage /></CatalogProvider></AuthProvider>);
+      await screen.findByText(/medicines ready/);
+      await user.type(searchBox(), 'rack c');
+      const opts = within(screen.getByRole('listbox')).getAllByRole('option');
+      expect(opts[0]).toHaveTextContent('Calpol Syrup');
+      expect(opts[0]).toHaveTextContent('Rack C | Row 2 | Left');
+      expect(opts[0]).toHaveTextContent('Fridge');
+      await user.keyboard('{Enter}');
+      expect(screen.getByText(/Keep in fridge/)).toBeInTheDocument(); // the bill line reminds where it is and how to store it
+    } finally { for (const k of ['rack', 'row', 'side']) CATALOG[1][k] = ''; CATALOG[1].storage = 'room'; }
+  });
+});

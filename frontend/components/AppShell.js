@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { KeyRound, LayoutDashboard, ShoppingCart, Receipt, Pill, LogOut, Menu, X, Boxes, Truck, Users, Building2, FileText, Wallet, BarChart3, Tags, UserCog, ScrollText, Settings, Landmark, ClipboardList } from 'lucide-react';
+import { KeyRound, LayoutDashboard, ShoppingCart, Receipt, Pill, LogOut, Menu, X, Boxes, Truck, Users, Building2, FileText, Wallet, BarChart3, Tags, UserCog, ScrollText, Settings, Landmark, ClipboardList, TrendingUp, Users2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Spinner } from '@/components/ui';
 import ChangePassword from '@/components/ChangePassword';
@@ -29,6 +29,8 @@ const GROUPS = [
   ] },
   { title: 'Owner', items: [
     { href: '/expenses', label: 'Expenses', icon: Wallet, perm: 'expenses:view' },
+    { href: '/finance', label: 'Finance & profit', icon: TrendingUp, perm: 'reports:view' },
+    { href: '/payroll', label: 'Staff salaries', icon: Users2, perm: 'payroll:manage' },
     { href: '/reports', label: 'Reports', icon: BarChart3, perm: 'reports:view' },
     { href: '/categories', label: 'Categories', icon: Tags, perm: 'categories:manage' },
     { href: '/users', label: 'Staff & roles', icon: UserCog, perm: 'users:manage' },

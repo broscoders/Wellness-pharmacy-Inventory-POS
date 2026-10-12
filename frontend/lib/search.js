@@ -30,6 +30,7 @@ export function prepare(item) {
     _g: generic,
     _m: maker,
     _b: String(item.barcode || '').toLowerCase(),
+    _l: item.rack || item.row || item.side ? normalize(`rack ${item.rack || ''} row ${item.row || ''} ${item.side || ''}`) : '',
     _words: name.split(' ').filter(Boolean),
     _gwords: generic.split(' ').filter(Boolean),
   };
@@ -111,6 +112,7 @@ function scoreItem(it, terms, whole, wholeCompact, now) {
     if (hasWordStart(it._gwords, t)) best = Math.max(best, 70);
     else if (it._g.includes(t)) best = Math.max(best, 40);
     if (it._m.includes(t)) best = Math.max(best, 25);
+    if (it._l && it._l.split(' ').includes(t)) best = Math.max(best, 30); // "rack a", "left"
     if (it._b && it._b.includes(t)) best = Math.max(best, t.length >= 5 ? 80 : 0);
     if (best === 0 && t.length >= 3 && it._c.includes(t)) best = 50; // typed without the space: "panadol500"
     if (best === 0) return -1;
@@ -203,4 +205,9 @@ export function substitutes(items, med, { limit = 8, now = Date.now() } = {}) {
     .sort((a, b) => Number(b.same) - Number(a.same) || (b.it.pop || 0) - (a.it.pop || 0) || byName(a.it, b.it))
     .slice(0, limit)
     .map(({ it, same }) => ({ ...it, sameStrength: same }));
+}
+
+// "Rack A | Row 3 | Left" (only the parts that are filled in)
+export function locationText(item) {
+  return [item.rack && `Rack ${item.rack}`, item.row && `Row ${item.row}`, item.side].filter(Boolean).join(' | ');
 }

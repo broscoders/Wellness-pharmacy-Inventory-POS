@@ -23,6 +23,10 @@ Legend: **Done** = built and covered by tests, **New** = added beyond the first 
 | 18 | **Cash closing (shifts)** | New | Open drawer with counted cash, cash in/out with reason, system-expected cash, counted vs expected, mandatory note on any difference, owner sees all shifts |
 | 19 | **Purchase orders** | New | One-click draft from low stock per supplier, edit, send, print, receive stock against the order (partial deliveries tracked), cancel with reason |
 | 20 | **Substitute suggestion** | New | Out-of-stock medicine shows in-stock brands with the same generic, same strength first |
+| 21 | **Finance and profit** | New | One screen: net sales, gross profit and margin %, expenses (% of sales, by category incl. salaries), net profit and net margin %, comparison with the previous period, 6-month trend, stock/udhaar/payables snapshot |
+| 22 | **Staff salaries (payroll)** | New | Staff list, monthly salary sheet, salary / advance / bonus payments, void with reason; every payment is also an expense so profit is right |
+| 23 | **Price check** | New | Flags medicines sold below cost, with very low margin, above MRP, or with no price; live margin preview in the medicine form |
+| 24 | **Medicine details** | New | Rack / row / side location (shown and searchable at the counter), dosage form, storage (fridge warning), MRP with sale-price limit |
 | 17 | Operations | Done + New | Backup/restore, demo data, go-live reset, import. **New:** automated tests for catalog, idempotent checkout and POS screen |
 
 ## Recommended next steps (not built yet, in priority order)

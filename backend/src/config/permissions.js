@@ -17,6 +17,7 @@ const ALL = [
   'audit:view',
   'settings:manage',
   'shifts:use', 'shifts:manage',
+  'payroll:manage',
 ];
 
 const ROLE_PERMISSIONS = {

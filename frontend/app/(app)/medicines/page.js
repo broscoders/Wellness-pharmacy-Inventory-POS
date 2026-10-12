@@ -6,12 +6,17 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { money, stockText, dateOnly, dateTime } from '@/lib/format';
 import { unitsPerBox, sellPrice } from '@/lib/units';
+import { locationText } from '@/lib/search';
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table, Textarea } from '@/components/ui';
 
 const emptyForm = {
   name: '', genericName: '', category: '', manufacturer: '', barcode: '', packType: 'Box', stripsPerBox: 10, unitsPerStrip: 10,
   purchasePrice: '', saleBox: '', saleStrip: '', saleUnit: '', wholesaleBox: '', minStockLevel: 0, requiresPrescription: false,
+  rack: '', row: '', side: '', dosageForm: '', storage: 'room', mrp: '',
 };
+
+// Margin = profit as a share of the selling price. Cost of a strip/unit is the box cost divided down.
+const marginPct = (cost, price) => (cost > 0 && price > 0 ? Math.round(((price - cost) / price) * 1000) / 10 : null);
 
 const num = (v) => (v === '' || v === null || v === undefined ? undefined : Number(v));
 
@@ -21,6 +26,7 @@ function toForm(m) {
     barcode: m.barcode || '', packType: m.packType || 'Box', stripsPerBox: m.stripsPerBox, unitsPerStrip: m.unitsPerStrip,
     purchasePrice: m.purchasePrice || '', saleBox: m.salePrice?.box || '', saleStrip: m.salePrice?.strip || '', saleUnit: m.salePrice?.unit || '',
     wholesaleBox: m.wholesalePrice?.box || '', minStockLevel: m.minStockLevel || 0, requiresPrescription: !!m.requiresPrescription,
+    rack: m.rack || '', row: m.row || '', side: m.side || '', dosageForm: m.dosageForm || '', storage: m.storage || 'room', mrp: m.mrp || '',
   };
 }
 
@@ -32,6 +38,7 @@ function toPayload(f) {
     salePrice: { box: num(f.saleBox) ?? 0, strip: num(f.saleStrip) ?? 0, unit: num(f.saleUnit) ?? 0 },
     wholesalePrice: { box: num(f.wholesaleBox) ?? 0 },
     minStockLevel: Number(f.minStockLevel) || 0, requiresPrescription: f.requiresPrescription,
+    rack: f.rack.trim(), row: f.row.trim(), side: f.side.trim(), dosageForm: f.dosageForm.trim(), storage: f.storage, mrp: num(f.mrp) ?? 0,
   };
 }
 
@@ -85,9 +92,9 @@ export default function MedicinesPage() {
           <Table head={['Medicine', 'Category', { label: 'Sale price (box / strip / unit)', right: true }, { label: 'In stock', right: true }, 'Status', '']}>
             {rows.map((m) => (
               <tr key={m._id} className={m.isActive ? '' : 'opacity-50'}>
-                <td className="px-3 py-2"><button className="text-left font-medium text-pine-dark hover:underline" onClick={() => setDetailId(m._id)}>{m.name}</button><p className="text-xs text-muted">{m.genericName || '-'}{m.manufacturer ? ` | ${m.manufacturer}` : ''}{m.barcode ? ` | ${m.barcode}` : ''}</p>{m.supplier?.name && <p className="text-xs text-muted">Supplier: {m.supplier.name}</p>}</td>
+                <td className="px-3 py-2"><button className="text-left font-medium text-pine-dark hover:underline" onClick={() => setDetailId(m._id)}>{m.name}</button><p className="text-xs text-muted">{m.genericName || '-'}{m.manufacturer ? ` | ${m.manufacturer}` : ''}{m.barcode ? ` | ${m.barcode}` : ''}</p>{locationText(m) && <p className="text-xs font-medium text-pine-dark">{locationText(m)}{m.storage === 'fridge' ? ' | Fridge' : ''}</p>}{m.supplier?.name && <p className="text-xs text-muted">Supplier: {m.supplier.name}</p>}</td>
                 <td className="px-3 py-2">{m.category?.name || '-'}</td>
-                <td className="num px-3 py-2 text-right">{[m.salePrice?.box, m.salePrice?.strip, m.salePrice?.unit].map((p) => (p ? money(p) : '-')).join(' / ')}</td>
+                <td className="num px-3 py-2 text-right">{[m.salePrice?.box, m.salePrice?.strip, m.salePrice?.unit].map((p) => (p ? money(p) : '-')).join(' / ')}{(() => { const mg = marginPct(m.purchasePrice, m.salePrice?.box); return mg === null ? null : <p className={`text-xs ${mg < 0 ? 'font-semibold text-danger' : mg < 8 ? 'text-amber' : 'text-muted'}`}>margin {mg}%</p>; })()}</td>
                 <td className="num px-3 py-2 text-right">{stockText(m.stock.display)}<p className="text-xs text-muted">{m.stock.sellable} units</p></td>
                 <td className="px-3 py-2 space-x-1">
                   {m.stock.isOut ? <Badge tone="bad">Out of stock</Badge> : m.stock.isLow ? <Badge tone="warn">Low</Badge> : <Badge tone="good">OK</Badge>}
@@ -152,9 +159,40 @@ function MedicineForm({ medicine, categories, onClose, onSaved }) {
         <Field label="Sale price per box"><Input type="number" min="0" value={f.saleBox} onChange={set('saleBox')} /></Field>
         <Field label="Sale price per strip"><Input type="number" min="0" value={f.saleStrip} onChange={set('saleStrip')} /></Field>
         <Field label="Sale price per unit/tablet"><Input type="number" min="0" value={f.saleUnit} onChange={set('saleUnit')} /></Field>
+        <Field label="MRP (printed price per box)" hint="Selling above this is not allowed"><Input type="number" min="0" value={f.mrp} onChange={set('mrp')} /></Field>
         <label className="flex items-center gap-2 pt-6"><input type="checkbox" checked={f.requiresPrescription} onChange={set('requiresPrescription')} /> Requires prescription</label>
       </div>
+      <MarginPreview f={f} />
+      <h3 className="mb-2 mt-5 font-semibold">Where to find it</h3>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label="Rack"><Input value={f.rack} onChange={set('rack')} placeholder="e.g. A" /></Field>
+        <Field label="Row / shelf"><Input value={f.row} onChange={set('row')} placeholder="e.g. 3" /></Field>
+        <Field label="Side"><Input value={f.side} onChange={set('side')} placeholder="e.g. Left" /></Field>
+        <Field label="Dosage form"><Input list="dosage-forms" value={f.dosageForm} onChange={set('dosageForm')} placeholder="Tablet, Syrup..." /></Field>
+        <Field label="Storage"><Select value={f.storage} onChange={set('storage')}><option value="room">Room temperature</option><option value="cool">Cool place</option><option value="fridge">Fridge (2-8 C)</option></Select></Field>
+      </div>
+      <datalist id="dosage-forms">{['Tablet', 'Capsule', 'Syrup', 'Suspension', 'Injection', 'Drops', 'Cream', 'Ointment', 'Gel', 'Inhaler', 'Sachet', 'Suppository', 'Other'].map((d) => <option key={d} value={d} />)}</datalist>
     </Modal>
+  );
+}
+
+// Live profit check while typing prices, so a bad price is caught before it is saved.
+function MarginPreview({ f }) {
+  const cost = Number(f.purchasePrice) || 0;
+  if (!cost) return null;
+  const upb = (Number(f.stripsPerBox) || 1) * (Number(f.unitsPerStrip) || 1);
+  const rows = [['box', Number(f.saleBox), cost], ['strip', Number(f.saleStrip), cost / (Number(f.stripsPerBox) || 1)], ['unit', Number(f.saleUnit), cost / upb]].filter(([, p]) => p > 0);
+  const mrp = Number(f.mrp) || 0;
+  if (!rows.length) return null;
+  return (
+    <div className="mt-3 rounded-md bg-paper p-3 text-sm">
+      <p className="mb-1 font-medium">Profit margin on your sale prices</p>
+      <div className="flex flex-wrap gap-x-6 gap-y-1">
+        {rows.map(([k, p, c]) => { const m = marginPct(c, p); return <span key={k} className={`num ${m < 0 ? 'font-semibold text-danger' : m < 5 ? 'text-amber' : 'text-pine-dark'}`}>Per {k}: {m}% <span className="text-muted">(profit {Math.round((p - c) * 100) / 100})</span></span>; })}
+      </div>
+      {rows.some(([, p, c]) => p < c) && <p className="mt-1 text-danger">A sale price is below cost. This medicine would be sold at a loss.</p>}
+      {mrp > 0 && Number(f.saleBox) > mrp && <p className="mt-1 text-danger">Box sale price is above the MRP ({mrp}).</p>}
+    </div>
   );
 }
 
@@ -215,7 +253,7 @@ function MedicineDetail({ id, onClose }) {
     <Modal open onClose={onClose} title={m.name} width="max-w-4xl">
       <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-muted">
         {m.genericName && <span>{m.genericName}</span>}{m.manufacturer && <span>| {m.manufacturer}</span>}{m.category?.name && <Badge>{m.category.name}</Badge>}
-        {m.supplier?.name && <span>| Supplier: {m.supplier.name}</span>}{m.requiresPrescription && <Badge tone="warn">Prescription (Rx)</Badge>}{m.barcode && <span className="num">| Barcode {m.barcode}</span>}{!m.isActive && <Badge tone="bad">Inactive</Badge>}
+        {m.supplier?.name && <span>| Supplier: {m.supplier.name}</span>}{m.requiresPrescription && <Badge tone="warn">Prescription (Rx)</Badge>}{m.barcode && <span className="num">| Barcode {m.barcode}</span>}{m.dosageForm && <Badge>{m.dosageForm}</Badge>}{m.storage === 'fridge' && <Badge tone="good">Keep in fridge</Badge>}{m.storage === 'cool' && <Badge>Cool place</Badge>}{locationText(m) && <Badge tone="good">{locationText(m)}</Badge>}{m.mrp > 0 && <span className="num">| MRP {money(m.mrp)}</span>}{!m.isActive && <Badge tone="bad">Inactive</Badge>}
       </div>
       <div className="mb-5 grid gap-3 sm:grid-cols-4">
         <div className="rounded-md border border-line px-3 py-2"><p className="text-xs text-muted">Pack</p><p className="font-medium">1 box = {m.stripsPerBox} strip x {m.unitsPerStrip}</p><p className="text-xs text-muted">{upb} units per box</p></div>

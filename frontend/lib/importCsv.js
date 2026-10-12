@@ -41,6 +41,12 @@ const ALIASES = {
   wholesalePriceBox: ['wholesalepricebox', 'wholesalebox', 'wholesaleprice', 'wholesalepriceperbox'],
   minStock: ['minstock', 'minimumstock', 'minstocklevel', 'reorderlevel', 'minimumstocklevel'],
   requiresPrescription: ['requiresprescription', 'rx', 'prescription', 'prescriptionrequired'],
+  rack: ['rack', 'rackno', 'rackname'],
+  row: ['row', 'shelf', 'rowno', 'shelfno'],
+  side: ['side', 'rackside'],
+  dosageForm: ['dosageform', 'form', 'type'],
+  storage: ['storage', 'storagecondition'],
+  mrp: ['mrp', 'maxretailprice', 'maximumretailprice'],
   batchNumber: ['batchnumber', 'batch', 'batchno', 'lot', 'lotno'],
   expiry: ['expiry', 'expirydate', 'expdate', 'exp'],
   openingBoxes: ['openingboxes', 'boxes', 'stockboxes', 'qtyboxes'],
@@ -60,8 +66,8 @@ export function mapRows(rows) {
   return { records, recognised, ignored };
 }
 
-export const TEMPLATE_COLUMNS = ['name', 'genericName', 'category', 'manufacturer', 'barcode', 'supplier', 'stripsPerBox', 'unitsPerStrip', 'purchasePrice', 'salePriceBox', 'salePriceStrip', 'salePriceUnit', 'wholesalePriceBox', 'minStock', 'requiresPrescription', 'batchNumber', 'expiry', 'openingBoxes', 'openingStrips', 'openingUnits'];
+export const TEMPLATE_COLUMNS = ['name', 'genericName', 'category', 'manufacturer', 'barcode', 'supplier', 'stripsPerBox', 'unitsPerStrip', 'purchasePrice', 'salePriceBox', 'salePriceStrip', 'salePriceUnit', 'wholesalePriceBox', 'minStock', 'requiresPrescription', 'rack', 'row', 'side', 'dosageForm', 'storage', 'mrp', 'batchNumber', 'expiry', 'openingBoxes', 'openingStrips', 'openingUnits'];
 export const TEMPLATE_SAMPLE = [
-  { name: 'Panadol 500mg', genericName: 'Paracetamol', category: 'Tablet', manufacturer: 'GSK', barcode: '6001234567890', supplier: 'Al-Shifa Distributors', stripsPerBox: 10, unitsPerStrip: 10, purchasePrice: 200, salePriceBox: 245, salePriceStrip: 25, salePriceUnit: 2.5, wholesalePriceBox: 225, minStock: 100, requiresPrescription: 'no', batchNumber: 'PN2401', expiry: '2028-06', openingBoxes: 5, openingStrips: 3, openingUnits: 0 },
-  { name: 'Calpol Syrup 60ml', genericName: 'Paracetamol', category: 'Syrup', manufacturer: 'GSK', barcode: '', supplier: '', stripsPerBox: 1, unitsPerStrip: 12, purchasePrice: 930, salePriceBox: 1120, salePriceStrip: '', salePriceUnit: 95, wholesalePriceBox: 1040, minStock: 12, requiresPrescription: 'no', batchNumber: 'CS7781', expiry: '2027-12-31', openingBoxes: 0, openingStrips: 0, openingUnits: 36 },
+  { name: 'Panadol 500mg', genericName: 'Paracetamol', category: 'Tablet', manufacturer: 'GSK', barcode: '6001234567890', supplier: 'Al-Shifa Distributors', stripsPerBox: 10, unitsPerStrip: 10, purchasePrice: 200, salePriceBox: 245, salePriceStrip: 25, salePriceUnit: 2.5, wholesalePriceBox: 225, minStock: 100, requiresPrescription: 'no', rack: 'A', row: '3', side: 'Left', dosageForm: 'Tablet', storage: 'room', mrp: 250, batchNumber: 'PN2401', expiry: '2028-06', openingBoxes: 5, openingStrips: 3, openingUnits: 0 },
+  { name: 'Calpol Syrup 60ml', genericName: 'Paracetamol', category: 'Syrup', manufacturer: 'GSK', barcode: '', supplier: '', stripsPerBox: 1, unitsPerStrip: 12, purchasePrice: 930, salePriceBox: 1120, salePriceStrip: '', salePriceUnit: 95, wholesalePriceBox: 1040, minStock: 12, requiresPrescription: 'no', rack: 'B', row: '1', side: 'Right', dosageForm: 'Syrup', storage: 'room', mrp: 1150, batchNumber: 'CS7781', expiry: '2027-12-31', openingBoxes: 0, openingStrips: 0, openingUnits: 36 },
 ];

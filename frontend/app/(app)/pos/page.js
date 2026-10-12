@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCatalog } from '@/context/CatalogContext';
 import { dateOnly, dateTime, money, stockText } from '@/lib/format';
 import { baseQtyOfType, round2, sellPrice } from '@/lib/units';
-import { parseDiscount, parseQuery, stockOf } from '@/lib/search';
+import { locationText, parseDiscount, parseQuery, stockOf } from '@/lib/search';
 import { beep } from '@/lib/beep';
 import { Badge, Button, Card, ErrorNote, Input, Modal, Select } from '@/components/ui';
 import Receipt from '@/components/Receipt';
@@ -411,8 +411,9 @@ function MedicineRow({ med, i, on, saleType, sameStrength, onPick, onHover }) {
       <button type="button" onClick={onPick} onMouseMove={onHover}
         className={`grid w-full grid-cols-[1fr_auto] items-center gap-x-3 border-b border-line px-3 py-2 text-left ${on ? 'bg-mint' : 'hover:bg-paper'} ${s.isOut ? 'opacity-60' : ''}`}>
         <span className="min-w-0">
-          <span className="flex items-center gap-2"><span className="truncate font-medium">{med.name}</span>{med.requiresPrescription && <Badge tone="warn">Rx</Badge>}{sameStrength === true && <Badge tone="good">Same strength</Badge>}{sameStrength === false && <Badge>Different strength</Badge>}</span>
+          <span className="flex items-center gap-2"><span className="truncate font-medium">{med.name}</span>{med.requiresPrescription && <Badge tone="warn">Rx</Badge>}{med.storage === 'fridge' && <Badge tone="good">Fridge</Badge>}{sameStrength === true && <Badge tone="good">Same strength</Badge>}{sameStrength === false && <Badge>Different strength</Badge>}</span>
           <span className="block truncate text-xs text-muted">{[med.genericName, med.manufacturer].filter(Boolean).join(' | ') || '\u00a0'}</span>
+          {locationText(med) && <span className="block truncate text-xs font-medium text-pine-dark">{locationText(med)}</span>}
         </span>
         <span className="num text-right">
           <span className="block font-semibold">{price ? money(price) : 'No price'}<span className="text-xs font-normal text-muted"> / {unit}</span></span>
@@ -436,6 +437,7 @@ function BillLine({ l, hot, onChange, onRemove, onAlt, onDone }) {
         <p className="min-w-0 truncate font-medium">{l.med.name} {l.med.requiresPrescription && <Badge tone="warn">Rx</Badge>}</p>
         <p className="num shrink-0 font-semibold">{money(l.total)}</p>
       </div>
+      {(locationText(l.med) || l.med.storage === 'fridge') && <p className="text-xs text-pine-dark">{locationText(l.med)}{l.med.storage === 'fridge' ? `${locationText(l.med) ? ' | ' : ''}Keep in fridge` : ''}</p>}
       <div className="mt-1 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <Select value={l.unitType} onChange={(e) => onChange({ unitType: e.target.value })} className="h-8 w-[84px] px-2 text-[13px]" aria-label="Unit"><option value="box">Box</option><option value="strip">Strip</option><option value="unit">Unit</option></Select>

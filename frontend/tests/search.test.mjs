@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { substitutes, genericKey, strengthOf, prepare, search, stockOf, takeLocal, parseQuery, findByBarcode, parseDiscount, normalize } from '../lib/search.js';
+import { locationText, substitutes, genericKey, strengthOf, prepare, search, stockOf, takeLocal, parseQuery, findByBarcode, parseDiscount, normalize } from '../lib/search.js';
 
 const day = 86400000;
 const now = Date.now();
@@ -122,4 +122,14 @@ test('substitutes: same generic, in stock, same strength first, never itself', (
   assert.deepEqual(r.map((x) => x.name), ['Calpol 500mg', 'Fevadol 650mg']);
   assert.equal(r[0].sameStrength, true); assert.equal(r[1].sameStrength, false);
   assert.deepEqual(substitutes(pool, mk('z', 'No generic', { genericName: '' })), []);
+});
+
+test('shelf location is shown and searchable', () => {
+  const a = mk('x1', 'Zinc Tablet', { rack: 'C', row: '2', side: 'Left' });
+  const b = mk('x2', 'Vitamin D', { rack: 'D', row: '1', side: 'Right' });
+  assert.equal(locationText(a), 'Rack C | Row 2 | Left');
+  assert.equal(locationText(mk('x3', 'Plain')), '');
+  assert.equal(locationText(mk('x4', 'Half', { rack: 'A' })), 'Rack A');
+  assert.deepEqual(search([a, b], 'rack c').map((i) => i.name)[0], 'Zinc Tablet');
+  assert.deepEqual(search([a, b], 'right').map((i) => i.name), ['Vitamin D']);
 });

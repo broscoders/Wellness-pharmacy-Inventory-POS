@@ -40,6 +40,20 @@ The POS shows a reminder if no shift is open. A cashier can only see their own s
 - When the goods arrive: **Receive stock** opens the purchase form already filled in. Add batch number and expiry from the packs. Partial deliveries are tracked ("2 of 3 boxes received") and the order closes itself when everything has come.
 - Cancelling needs a reason; finished orders cannot be changed.
 
+## Finance and profit (owner)
+**Finance & profit** answers "did the shop really make money?":
+- **Net sales** = sales minus returns. **Gross profit** = net sales minus what the sold medicines cost (the real purchase cost of the batches sold). **Margin %** = profit as a share of net sales.
+- **Expenses** (rent, electricity, internet, delivery, maintenance, salaries...) are taken off gross profit to give **net profit** and **net margin %**. Each expense shows its share of sales, so the owner sees what is eating the profit.
+- Every figure is compared with the same-length period before it, and the last 6 months are shown as a trend.
+- It also shows what the shop holds (stock at cost) and owes/is owed (udhaar, supplier payables).
+- **Price check** lists medicines that lose money, have a tiny margin, are above MRP, or have no sale price.
+
+## Staff salaries
+Staff salaries > add each person with their monthly salary. For every month the sheet shows salary, paid, advance, bonus and what is still to pay. **Pay** records a salary, an advance (deducted from that month's salary) or a bonus (extra). Each payment automatically becomes an expense, so profit is correct; a wrongly entered payment is voided with a reason (it disappears from expenses too). Only the owner can see this page.
+
+## Where is the medicine? (shelf location)
+Each medicine can have a rack, row and side ("Rack C | Row 2 | Left"), a dosage form, a storage type (fridge items show a warning) and an MRP. The location is shown on the POS list and on the bill, and typing "rack c" at the counter finds everything on that rack. The system refuses a sale price above MRP. Import from Excel accepts the same columns.
+
 ## Substitutes
 If a medicine is out of stock or expired, the POS lists other brands with the same generic name that are in stock, same strength first. There is also an "Alternatives" link on every bill line. It only suggests; the pharmacist decides whether a substitute is suitable.
 

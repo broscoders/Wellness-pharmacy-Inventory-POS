@@ -47,6 +47,9 @@ function shape(m, batchesByMed, pop) {
     wholesalePrice: priceOf(m.wholesalePrice),
     minStockLevel: m.minStockLevel || 0,
     requiresPrescription: !!m.requiresPrescription,
+    rack: m.rack || '', row: m.row || '', side: m.side || '',
+    dosageForm: m.dosageForm || '',
+    storage: m.storage || 'room',
     pop: pop.get(id) || 0,
     batches: (batchesByMed.get(id) || []).map((b) => [b.quantity, b.expiryDate.getTime()]),
   };
@@ -74,7 +77,7 @@ async function buildCatalog({ since } = {}) {
   }
 
   const [meds, batches] = await Promise.all([
-    Medicine.find(medFilter).select('name genericName manufacturer category barcode stripsPerBox unitsPerStrip salePrice wholesalePrice minStockLevel requiresPrescription').sort({ name: 1 }).lean(),
+    Medicine.find(medFilter).select('name genericName manufacturer category barcode stripsPerBox unitsPerStrip salePrice wholesalePrice minStockLevel requiresPrescription rack row side dosageForm storage').sort({ name: 1 }).lean(),
     Batch.find(batchFilter).select('medicine quantity expiryDate').sort({ expiryDate: 1 }).lean(),
   ]);
 

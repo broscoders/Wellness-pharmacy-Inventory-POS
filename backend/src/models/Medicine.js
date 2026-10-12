@@ -23,6 +23,14 @@ const medicineSchema = new mongoose.Schema(
     salePrice: { type: priceSchema, default: () => ({}) }, // retail price per box/strip/unit
     wholesalePrice: { type: priceSchema, default: () => ({}) },
 
+    // Where it sits in the shop, so anyone can find it quickly: "Rack A, Row 3, Left side"
+    rack: { type: String, trim: true, maxlength: 40 },
+    row: { type: String, trim: true, maxlength: 40 },
+    side: { type: String, trim: true, maxlength: 40 },
+    dosageForm: { type: String, trim: true, maxlength: 40 }, // Tablet, Capsule, Syrup, Injection, Cream, Drops...
+    storage: { type: String, enum: ['room', 'cool', 'fridge'], default: 'room' }, // fridge items must never be left out
+    mrp: { type: Number, min: 0, default: 0 }, // printed maximum retail price per BOX; selling above it is not allowed
+
     minStockLevel: { type: Number, min: 0, default: 0 }, // in base units
     requiresPrescription: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },

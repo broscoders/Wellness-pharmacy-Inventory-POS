@@ -16,6 +16,7 @@ const { unitsPerBox, fromBase } = require('../utils/units');
 const { getAlerts } = require('../services/inventory.service');
 const { productStats, slowMoving } = require('../services/analytics.service');
 const { getPagination, pageMeta } = require('../utils/pagination');
+const { profitFor } = require('../services/finance.service');
 
 const sum = (a, f) => a.reduce((s, x) => s + f(x), 0);
 const meta = ({ start, end }) => ({ from: localDay(start), to: localDay(new Date(end.getTime() - 1)) });
@@ -165,28 +166,8 @@ const customers = asyncHandler(async (req, res) => {
 // ---- Profit & financial report
 const profit = asyncHandler(async (req, res) => {
   const range = rangeFromQuery(req.query);
-  const f = (field) => ({ [field]: { $gte: range.start, $lt: range.end } });
-  const [list, returns, purchases, expenses] = await Promise.all([
-    Sale.find({ ...f('createdAt'), status: { $ne: 'cancelled' } }).lean(),
-    SaleReturn.find(f('createdAt')).lean(),
-    Purchase.find(f('purchaseDate')).select('total').lean(),
-    Expense.find({ ...f('date'), isVoided: false }).lean(),
-  ]);
-  const sales = sum(list, (s) => s.total);
-  const returned = sum(returns, (r) => r.refundAmount);
-  const cogs = sum(list, (s) => sum(s.items, (i) => i.costTotal)) - sum(returns, (r) => sum(r.items, (i) => i.cost));
-  const gross = sales - returned - cogs;
-  const exp = sum(expenses, (e) => e.amount);
-  const byCategory = {};
-  expenses.forEach((e) => { byCategory[e.category] = round2((byCategory[e.category] || 0) + e.amount); });
   res.json({
-    success: true, range: meta(range),
-    data: {
-      sales: round2(sales), salesReturns: round2(returned), netSales: round2(sales - returned),
-      purchaseCostOfGoodsSold: round2(cogs), grossProfit: round2(gross),
-      expenses: round2(exp), expensesByCategory: byCategory, estimatedNetProfit: round2(gross - exp),
-      purchasesMade: round2(sum(purchases, (p) => p.total)),
-    },
+    success: true, range: meta(range), data: await profitFor(range.start, range.end),
     note: 'Cost of goods sold uses the purchase cost of the exact batches sold. Purchases made is shown for information only.',
   });
 });

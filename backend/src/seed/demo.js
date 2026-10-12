@@ -115,6 +115,9 @@ const rnd = (min, max) => { seed = (seed * 1664525 + 1013904223) % 4294967296; r
 const inDays = (n) => new Date(Date.now() + n * 86400000);
 const round = (n) => Math.round(n * 100) / 100;
 
+// Demo shelf position: spreads medicines over racks A-F, rows 1-4, left/right (same medicine always gets the same place).
+const place = (i) => ({ rack: 'ABCDEF'[i % 6], row: String((Math.floor(i / 6) % 4) + 1), side: i % 2 ? 'Right' : 'Left' });
+
 function toMedicine(item, index, categoryId) {
   const barcode = `${BARCODE_PREFIX}${String(index + 1).padStart(6, '0')}`;
   if (item.kind === 'strip') {
@@ -123,7 +126,7 @@ function toMedicine(item, index, categoryId) {
     return {
       name, genericName, category: categoryId, manufacturer, barcode, stripsPerBox: spb, unitsPerStrip: ups, packType: 'Box',
       purchasePrice: round(box * 0.82), salePrice: { box, strip, unit: round(strip / ups) }, wholesalePrice: { box: round(box * 0.92) },
-      minStockLevel: Math.max(20, Math.round(spb * ups * 0.4)), requiresPrescription: !!rx,
+      minStockLevel: Math.max(20, Math.round(spb * ups * 0.4)), requiresPrescription: !!rx, ...place(index),
     };
   }
   const [name, genericName, , manufacturer, perBox, piece, rx] = item.a;
@@ -131,7 +134,7 @@ function toMedicine(item, index, categoryId) {
   return {
     name, genericName, category: categoryId, manufacturer, barcode, stripsPerBox: 1, unitsPerStrip: perBox, packType: 'Box',
     purchasePrice: round(box * 0.82), salePrice: { box, strip: 0, unit: piece }, wholesalePrice: { box: round(box * 0.92) },
-    minStockLevel: Math.max(3, Math.round(perBox * 0.4)), requiresPrescription: !!rx,
+    minStockLevel: Math.max(3, Math.round(perBox * 0.4)), requiresPrescription: !!rx, ...place(index),
   };
 }
 

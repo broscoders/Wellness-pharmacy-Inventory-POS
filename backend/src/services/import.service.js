@@ -44,6 +44,9 @@ function parseRow(raw) {
     stripsPerBox, unitsPerStrip, purchasePrice, minStockLevel,
     salePrice: { box: saleBox, strip: saleStrip, unit: saleUnit }, wholesalePrice: { box: wholesaleBox },
     requiresPrescription: yes(r.requiresPrescription),
+    rack: r.rack || undefined, row: r.row || undefined, side: r.side || undefined, dosageForm: r.dosageForm || undefined,
+    storage: ['room', 'cool', 'fridge'].includes(String(r.storage || '').toLowerCase()) ? String(r.storage).toLowerCase() : undefined,
+    mrp: Number(r.mrp) > 0 ? Number(r.mrp) : undefined,
   };
 
   let stock = null;

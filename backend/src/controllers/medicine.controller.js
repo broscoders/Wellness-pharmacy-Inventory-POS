@@ -25,6 +25,12 @@ const baseSchema = z.object({
   wholesalePrice: price.optional(),
   minStockLevel: z.number().int().min(0).optional(),
   requiresPrescription: z.boolean().optional(),
+  rack: z.string().trim().max(40).optional(),
+  row: z.string().trim().max(40).optional(),
+  side: z.string().trim().max(40).optional(),
+  dosageForm: z.string().trim().max(40).optional(),
+  storage: z.enum(['room', 'cool', 'fridge']).optional(),
+  mrp: z.number().min(0).optional(),
   isActive: z.boolean().optional(),
 });
 const createSchema = baseSchema;
@@ -39,12 +45,18 @@ const clean = (body) => {
   return b;
 };
 
+// The shop may never sell a box above the printed MRP.
+function assertMrp(mrp, salePrice) {
+  const box = salePrice?.box || 0;
+  if (mrp > 0 && box > mrp) throw ApiError.badRequest(`Sale price per box (${box}) is above the MRP (${mrp})`);
+}
+
 const list = asyncHandler(async (req, res) => {
   const { page, limit, skip } = getPagination(req.query);
   const filter = {};
   if (req.query.search) {
     const rx = new RegExp(escapeRegex(req.query.search), 'i');
-    filter.$or = [{ name: rx }, { genericName: rx }, { barcode: rx }, { manufacturer: rx }];
+    filter.$or = [{ name: rx }, { genericName: rx }, { barcode: rx }, { manufacturer: rx }, { rack: rx }];
   }
   if (req.query.category) filter.category = req.query.category;
   if (req.query.manufacturer) filter.manufacturer = new RegExp(`^${escapeRegex(req.query.manufacturer)}$`, 'i');
@@ -92,6 +104,7 @@ const byBarcode = asyncHandler(async (req, res) => {
 });
 
 const create = asyncHandler(async (req, res) => {
+  assertMrp(req.body.mrp, req.body.salePrice);
   const med = await Medicine.create(clean(req.body));
   await audit(req, 'medicine.create', 'Medicine', med._id, { name: med.name });
   res.status(201).json({ success: true, data: med });
@@ -117,6 +130,7 @@ const update = asyncHandler(async (req, res) => {
     if (body[k] !== undefined) priceChange[k] = { from: before[k], to: body[k] };
   });
 
+  assertMrp(body.mrp ?? before.mrp, body.salePrice ? { ...before.salePrice?.toObject?.(), ...body.salePrice } : before.salePrice);
   Object.assign(before, body);
   await before.save();
   await audit(req, 'medicine.update', 'Medicine', before._id, { fields: Object.keys(body) });
