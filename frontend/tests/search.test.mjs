@@ -81,12 +81,19 @@ test('quantity prefix: 3*pana / 2x extra', () => {
   assert.deepEqual(parseQuery('500mg'), { qty: 1, text: '500mg' });
   assert.deepEqual(parseQuery('panadol 500'), { qty: 1, text: 'panadol 500' });
 });
-test('discount accepts an amount or a percentage and is capped', () => {
-  assert.equal(parseDiscount('10%', 500), 50);
-  assert.equal(parseDiscount('75', 500), 75);
-  assert.equal(parseDiscount('900', 500), 500);
+test('discount: a plain number is a percent; "rs" makes it an amount; always capped', () => {
+  assert.equal(parseDiscount('2', 500), 10);        // typing 2 means 2%
+  assert.equal(parseDiscount('2%', 500), 10);       // the % sign is optional
+  assert.equal(parseDiscount('10', 445), 44.5);
+  assert.equal(parseDiscount('2.5', 400), 10);
+  assert.equal(parseDiscount('rs 75', 500), 75);    // a fixed amount needs "rs"
+  assert.equal(parseDiscount('75rs', 500), 75);
+  assert.equal(parseDiscount('Rs. 75', 500), 75);
+  assert.equal(parseDiscount('150', 500), 500);     // 150% is capped at the whole bill
+  assert.equal(parseDiscount('rs 900', 500), 500);
   assert.equal(parseDiscount('-5', 500), 0);
   assert.equal(parseDiscount('abc', 500), 0);
+  assert.equal(parseDiscount('', 500), 0);
 });
 test('search over 5,000 medicines takes a few milliseconds', () => {
   const big = Array.from({ length: 5000 }, (_, i) => mk(String(i), `Medicine ${i} ${['Tablet', 'Syrup', 'Injection'][i % 3]} ${i % 7}mg`, { genericName: `Generic${i % 300}`, manufacturer: `Maker${i % 40}`, pop: i % 70 }));

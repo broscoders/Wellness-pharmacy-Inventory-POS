@@ -152,6 +152,7 @@ describe('POS counter', () => {
     await user.type(screen.getByLabelText('Cash received'), '100');
     expect(screen.getByText(/Change to give back/)).toHaveTextContent('Rs 75');
     await user.clear(screen.getByLabelText('Cash received'));
+    await user.click(screen.getByRole('button', { name: 'Card / Bank / Udhaar' })); // these boxes are tucked away until needed
     await user.type(screen.getAllByPlaceholderText('0').at(-1), '25'); // udhaar box
     expect(screen.getByText(/Choose a customer to record udhaar/)).toBeTruthy();
     expect(screen.getByRole('button', { name: /Complete sale/ })).toBeDisabled();
@@ -165,11 +166,33 @@ describe('POS counter', () => {
     expect(screen.getByRole('button', { name: /Complete sale/ })).toBeEnabled();
   });
 
-  it('discount accepts a percentage', async () => {
-    const user = await open();
+  it('the discount box takes a percent: typing 10 gives 10% off, and it shows the amount', async () => {
+    const user = userEvent.setup();
+    await open();
     await user.type(searchBox(), '4*pana{Enter}'); // Rs 100
-    await user.type(screen.getByLabelText('Discount'), '10%');
+    await user.type(screen.getByLabelText('Discount percent'), '10');
     expect(screen.getAllByText('Rs 90').length).toBeGreaterThan(0);
+    expect(screen.getByText('= Rs 10')).toBeInTheDocument();
+  });
+
+  it('typing 2 means 2%, not Rs 2', async () => {
+    const user = userEvent.setup();
+    await open();
+    await user.type(searchBox(), '40*pana{Enter}'); // Rs 1,000
+    await user.type(screen.getByLabelText('Discount percent'), '2');
+    expect(screen.getAllByText('Rs 980').length).toBeGreaterThan(0); // 2% of 1,000 = 20
+    expect(screen.getByText('= Rs 20')).toBeInTheDocument();
+  });
+
+  it('card / bank / udhaar boxes stay hidden until asked for, and open by themselves once used', async () => {
+    const user = userEvent.setup();
+    await open();
+    await user.type(searchBox(), 'pana{Enter}');
+    expect(screen.queryByText('Bank')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Card / Bank / Udhaar' }));
+    expect(screen.getByText('Bank')).toBeInTheDocument();
+    await user.type(screen.getAllByPlaceholderText('0').at(-2), '10'); // bank
+    expect(screen.getByRole('button', { name: 'Hide' })).toBeInTheDocument();
   });
 
   it('opens from the saved copy when the server is unreachable', async () => {

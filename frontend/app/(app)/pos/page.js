@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Clock, Minus, Pause, Plus, Printer, RefreshCw, Search, Trash2, Volume2, VolumeX, WifiOff, X } from 'lucide-react';
+import { ArrowLeftRight, Clock, Minus, Pause, Plus, Printer, RefreshCw, Search, Trash2, Volume2, VolumeX, WifiOff, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useCatalog } from '@/context/CatalogContext';
@@ -50,6 +50,7 @@ export default function PosPage() {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(null);
   const [waPhone, setWaPhone] = useState('');
+  const [moreOpen, setMoreOpen] = useState(false); // card / bank / udhaar boxes are tucked away until needed
   const [held, setHeld] = useState([]);
   const [heldOpen, setHeldOpen] = useState(false);
   const [prefs, setPrefs] = useState({ sound: true, autoPrint: false });
@@ -142,6 +143,7 @@ export default function PosPage() {
   const discOver = disc > round2((subtotal * maxPct) / 100) + 0.001;
   const total = round2(subtotal - disc);
   const entered = { cash: Number(pay.cash) || 0, card: Number(pay.card) || 0, bank_transfer: Number(pay.bank_transfer) || 0, credit: Number(pay.credit) || 0 };
+  const usingOther = entered.card > 0 || entered.bank_transfer > 0 || entered.credit > 0;
   const nothingTyped = !entered.cash && !entered.card && !entered.bank_transfer && !entered.credit;
   const eff = nothingTyped ? { ...entered, cash: total } : entered; // nothing typed = customer pays the exact amount in cash
   const received = round2(eff.cash + eff.card + eff.bank_transfer);
@@ -231,19 +233,20 @@ export default function PosPage() {
   const showingBest = !parsed.text && !category;
 
   return (
-    <div className="flex flex-col gap-3 xl:h-[calc(100dvh-3rem)]">
-      {/* top bar */}
-      <div className="no-print flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">POS / Billing</h1>
-          <p className="flex items-center gap-2 text-xs text-muted">
+    <div className="-m-2 flex flex-col gap-2 p-2 lg:-m-3 lg:p-3 xl:h-[calc(100dvh-1.5rem)]">
+      {/* top bar: one slim row so the medicine list gets the height */}
+      <div className="no-print flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
+          <h1 className="text-lg font-semibold tracking-tight">POS / Billing</h1>
+          <p className="flex items-center gap-1.5 text-xs text-muted">
             {!catalog?.ready ? 'Loading medicines...' : offline
               ? <span className="inline-flex items-center gap-1 font-medium text-amber"><WifiOff className="h-3.5 w-3.5" /> {catalog.status.error}: using the saved list ({catalog.count.toLocaleString()} medicines)</span>
               : <span>{catalog.count.toLocaleString()} medicines ready{secondsAgo !== null && !catalog.status.fromCache ? ` | updated ${secondsAgo < 5 ? 'just now' : `${secondsAgo}s ago`}` : ''}</span>}
             {catalog?.ready && <button onClick={() => catalog.refresh()} className="rounded p-1 text-muted hover:bg-mint hover:text-ink" title="Reload the medicine list now" aria-label="Reload medicine list"><RefreshCw className="h-3.5 w-3.5" /></button>}
           </p>
+          {useShifts && !shiftOpen && <Link href="/shifts" className="rounded-full bg-amber-soft px-2.5 py-0.5 text-xs font-medium text-amber hover:underline" title="Today's cash cannot be checked at closing without an open shift">No shift open - open it</Link>}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           <label className="hidden items-center gap-1.5 text-xs text-muted sm:flex"><input type="checkbox" checked={prefs.autoPrint} onChange={(e) => setPref({ autoPrint: e.target.checked })} /> Print after sale</label>
           <Button variant="ghost" size="sm" onClick={() => setPref({ sound: !prefs.sound })} title={prefs.sound ? 'Mute counter sounds' : 'Turn counter sounds on'} aria-label="Toggle sound">{prefs.sound ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}</Button>
           <Button variant="secondary" size="sm" onClick={holdBill} disabled={!cart.length} title="Put this bill aside (F8)"><Pause className="h-4 w-4" /> Hold</Button>
@@ -252,24 +255,19 @@ export default function PosPage() {
         </div>
       </div>
 
-      {useShifts && !shiftOpen && (
-        <p className="no-print rounded-md bg-amber-soft px-3 py-2 text-sm text-amber">No cash shift is open, so today&apos;s cash cannot be checked at closing. <Link href="/shifts" className="font-medium underline">Open your shift</Link></p>
-      )}
-      <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1fr)_500px]">
+      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[minmax(0,1fr)_480px]">
         {/* LEFT: find medicines */}
         <Card className="no-print flex min-h-0 flex-col">
-          <div className="space-y-2 border-b border-line p-3">
+          <div className="space-y-1.5 border-b border-line p-2.5">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted" />
-              <Input ref={searchRef} className="h-12 pl-10 pr-24 text-base" placeholder="Scan barcode or type medicine name" value={term} autoComplete="off" spellCheck={false}
+              <Input ref={searchRef} className="h-11 pl-10 pr-24 text-base" placeholder="Scan barcode or type medicine name" value={term} autoComplete="off" spellCheck={false}
                 onChange={(e) => setTerm(e.target.value)} onKeyDown={onSearchKey} aria-label="Search medicine" />
               {parsed.qty > 1 && parsed.text && <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded bg-mint px-2 py-0.5 text-xs font-semibold text-pine-dark">Qty {parsed.qty}</span>}
             </div>
-            <p className="hidden text-xs text-muted lg:block">
-              <Kbd>Enter</Kbd> add &nbsp; <Kbd>Up</Kbd>/<Kbd>Down</Kbd> choose &nbsp; type <b>3*pana</b> for 3 pieces &nbsp; <Kbd>F4</Kbd> quantity &nbsp; <Kbd>F8</Kbd> hold &nbsp; <Kbd>F9</Kbd> complete
-            </p>
+            <p className="hidden truncate text-[11px] text-muted xl:block"><Kbd>Enter</Kbd> add &middot; <Kbd>Up</Kbd><Kbd>Down</Kbd> choose &middot; <b>3*pana</b> = 3 pieces &middot; <Kbd>F4</Kbd> quantity &middot; <Kbd>F8</Kbd> hold &middot; <Kbd>F9</Kbd> complete</p>
             {catalog?.categories?.length > 0 && (
-              <div className="flex gap-1.5 overflow-x-auto pb-1" role="tablist" aria-label="Category">
+              <div className="no-scrollbar flex gap-1.5 overflow-x-auto" role="tablist" aria-label="Category">
                 <Chip on={!category} onClick={() => setCategory(null)}>All</Chip>
                 {catalog.categories.map((c) => <Chip key={c._id} on={category === c._id} onClick={() => setCategory(category === c._id ? null : c._id)}>{c.name}</Chip>)}
               </div>
@@ -300,8 +298,8 @@ export default function PosPage() {
         </Card>
 
         {/* RIGHT: the bill */}
-        <div className="flex min-h-0 flex-col gap-3">
-          <Card className="flex min-h-[160px] flex-1 flex-col">
+        <div className="flex min-h-0 flex-col gap-2">
+          <Card className="flex min-h-[140px] flex-1 flex-col">
             <div className="no-print flex items-center justify-between border-b border-line px-3 py-2">
               <p className="text-sm font-semibold">Bill <span className="ml-1 font-normal text-muted">{lines.length ? `${lines.length} item${lines.length > 1 ? 's' : ''}` : ''}</span></p>
               {lines.length > 0 && <button className="text-xs text-muted hover:text-danger" onClick={() => { if (confirm('Clear this bill?')) clearBill(); }}>Clear</button>}
@@ -315,45 +313,46 @@ export default function PosPage() {
             </div>
           </Card>
 
-          <Card className="no-print space-y-3 p-3">
+          <Card className="no-print space-y-2 p-2.5">
             <CustomerPicker customer={customer} onChange={setCustomer} label="" placeholder="Customer (optional, needed for udhaar)" />
-            <div className="rounded-lg bg-pine-dark px-4 py-3 text-white">
+            <div className="rounded-lg bg-pine-dark px-3 py-2 text-white">
               <div className="num flex items-end justify-between">
                 <span className="text-sm text-white/70">Total</span>
-                <span className="text-3xl font-semibold leading-none tracking-tight">{money(total)}</span>
+                <span className="text-2xl font-semibold leading-none tracking-tight">{money(total)}</span>
               </div>
-              <div className="num mt-2 flex items-center justify-between gap-3 text-xs text-white/70">
+              <div className="num mt-1.5 flex items-center justify-between gap-3 text-xs text-white/70">
                 <span>Subtotal {money(subtotal)}</span>
                 {can('sales:discount') && (
-                  <label className="flex items-center gap-2">Discount
-                    <input className="num h-7 w-20 rounded border border-white/30 bg-white/10 px-2 text-right text-white placeholder:text-white/40 focus:border-white focus:outline-none" value={discountText} onChange={(e) => setDiscountText(e.target.value)} placeholder="0 or 10%" inputMode="decimal" aria-label="Discount" />
+                  <label className="flex items-center gap-1.5">Discount
+                    <input className="num h-7 w-14 rounded border border-white/30 bg-white/10 px-2 text-right text-white placeholder:text-white/40 focus:border-white focus:outline-none" value={discountText} onChange={(e) => setDiscountText(e.target.value)} placeholder="0" inputMode="decimal" aria-label="Discount percent" />
+                    <span>%</span>
+                    {disc > 0 && <span className="font-medium text-white">= {money(disc)}</span>}
                   </label>
                 )}
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="w-12 text-sm font-medium">Cash</span>
-                <Input className="num h-10 flex-1 text-right text-base" type="number" min="0" value={pay.cash} onChange={(e) => setPay({ ...pay, cash: e.target.value })} placeholder={total ? `${total} (exact)` : '0'} aria-label="Cash received" />
-              </div>
-              {total > 0 && (
-                <div className="flex flex-wrap gap-1.5 pl-14">
-                  <Button variant="secondary" size="sm" onClick={() => setPay({ ...NO_PAY, cash: String(total) })}>Exact</Button>
-                  {cashButtons.map((v) => <Button key={v} variant="secondary" size="sm" onClick={() => setPay({ ...pay, cash: String(v) })}>{v.toLocaleString()}</Button>)}
-                </div>
-              )}
+            <div className="flex items-center gap-2">
+              <span className="w-10 text-sm font-medium">Cash</span>
+              <Input className="num h-9 flex-1 text-right text-base" type="number" min="0" value={pay.cash} onChange={(e) => setPay({ ...pay, cash: e.target.value })} placeholder={total ? `${total} (exact)` : '0'} aria-label="Cash received" />
+            </div>
+            <div className="flex flex-wrap items-center gap-1 pl-12">
+              {total > 0 && <button type="button" className="rounded border border-line bg-white px-2 py-0.5 text-xs font-medium hover:bg-mint" onClick={() => setPay({ ...NO_PAY, cash: String(total) })}>Exact</button>}
+              {cashButtons.map((v) => <button key={v} type="button" className="rounded border border-line bg-white px-2 py-0.5 text-xs font-medium hover:bg-mint" onClick={() => setPay({ ...pay, cash: String(v) })}>{v.toLocaleString()}</button>)}
+              <button type="button" className="ml-auto text-xs text-muted underline hover:text-ink" onClick={() => setMoreOpen((o) => !o)} aria-expanded={moreOpen || usingOther}>{moreOpen || usingOther ? 'Hide' : 'Card / Bank / Udhaar'}</button>
+            </div>
+            {(moreOpen || usingOther) && (
               <div className="grid grid-cols-3 gap-2">
                 {[['card', 'Card'], ['bank_transfer', 'Bank'], ['credit', 'Udhaar']].map(([k, label]) => (
                   <label key={k} className="block text-xs text-muted">{label}
-                    <Input className="num mt-0.5 h-9 text-right text-sm text-ink" type="number" min="0" value={pay[k]} onChange={(e) => setPay({ ...pay, [k]: e.target.value })} placeholder="0" />
+                    <Input className="num mt-0.5 h-8 text-right text-sm text-ink" type="number" min="0" value={pay[k]} onChange={(e) => setPay({ ...pay, [k]: e.target.value })} placeholder="0" />
                   </label>
                 ))}
               </div>
-            </div>
+            )}
 
             {needsRx && (
-              <div className="space-y-2 rounded-md bg-amber-soft p-2 text-sm">
+              <div className="space-y-1.5 rounded-md bg-amber-soft p-2 text-sm">
                 <p className="font-medium text-amber">Prescription (Rx) medicines on this bill</p>
                 {can('prescriptions:view') && <RxPicker value={rxLink} onChange={setRxLink} customer={customer} />}
                 {!rxLink && <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={rx} onChange={(e) => setRx(e.target.checked)} /> I have checked the prescription for the Rx medicines.</label>}
@@ -361,10 +360,12 @@ export default function PosPage() {
             )}
             {discOver && <p className="text-sm font-medium text-danger">Your discount limit is {maxPct}% of the bill. Ask the owner for more.</p>}
             {eff.credit > 0 && !customer && <p className="text-sm text-danger">Choose a customer to record udhaar.</p>}
-            <div className="num min-h-5 text-sm">
-              {total > 0 && remaining > 0 && <p className="font-medium text-danger">Still to pay: {money(remaining)}</p>}
-              {change > 0 && <p className="text-base font-semibold text-pine-dark">Change to give back: {money(change)}</p>}
-            </div>
+            {total > 0 && (remaining > 0 || change > 0) && (
+              <div className="num text-sm">
+                {remaining > 0 && <p className="font-medium text-danger">Still to pay: {money(remaining)}</p>}
+                {change > 0 && <p className="text-base font-semibold text-pine-dark">Change to give back: {money(change)}</p>}
+              </div>
+            )}
             <ErrorNote error={error} />
             <Button size="lg" className="w-full" disabled={!canPay} loading={busy} onClick={checkout}>
               Complete sale{total ? ` - ${money(total)}` : ''} <span className="ml-1 hidden rounded bg-white/20 px-1.5 text-xs font-normal xl:inline">F9</span>
@@ -410,7 +411,7 @@ function Kbd({ children }) {
 }
 
 function Chip({ on, onClick, children }) {
-  return <button role="tab" aria-selected={on} onClick={onClick} className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${on ? 'border-pine bg-pine text-white' : 'border-line bg-white text-ink hover:bg-mint'}`}>{children}</button>;
+  return <button role="tab" aria-selected={on} onClick={onClick} className={`shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${on ? 'border-pine bg-pine text-white' : 'border-line bg-white text-ink hover:bg-mint'}`}>{children}</button>;
 }
 
 // One medicine in the find list: what it is, what it costs, what is left, when it expires.
@@ -426,7 +427,7 @@ function MedicineRow({ med, i, on, saleType, sameStrength, onPick, onHover }) {
   return (
     <li data-i={i} role="option" aria-selected={on} aria-disabled={s.isOut}>
       <button type="button" onClick={onPick} onMouseMove={onHover}
-        className={`grid w-full grid-cols-[1fr_auto] items-center gap-x-3 border-b border-line px-3 py-2 text-left ${on ? 'bg-mint' : 'hover:bg-paper'} ${s.isOut ? 'opacity-60' : ''}`}>
+        className={`grid w-full grid-cols-[1fr_auto] items-center gap-x-3 border-b border-line px-3 py-1.5 text-left ${on ? 'bg-mint' : 'hover:bg-paper'} ${s.isOut ? 'opacity-60' : ''}`}>
         <span className="min-w-0">
           <span className="flex items-center gap-2"><span className="truncate font-medium">{med.name}</span>{med.requiresPrescription && <Badge tone="warn">Rx</Badge>}{med.storage === 'fridge' && <Badge tone="good">Fridge</Badge>}{sameStrength === true && <Badge tone="good">Same strength</Badge>}{sameStrength === false && <Badge>Different strength</Badge>}</span>
           <span className="block truncate text-xs text-muted">{[med.genericName, med.manufacturer].filter(Boolean).join(' | ') || '\u00a0'}</span>
@@ -448,30 +449,24 @@ function BillLine({ l, hot, onChange, onRemove, onAlt, onDone }) {
   if (l.missing) {
     return <li className="flex items-center justify-between gap-3 bg-danger-soft p-3 text-sm text-danger"><span>{l.name} is no longer available</span><button onClick={onRemove} aria-label="Remove"><X className="h-4 w-4" /></button></li>;
   }
+  const where = [locationText(l.med), l.med.storage === 'fridge' && 'Keep in fridge'].filter(Boolean).join(' | ');
   return (
-    <li className={`px-3 py-2 ${hot ? 'bg-mint/60' : ''}`}>
-      <div className="flex items-start justify-between gap-3">
-        <p className="min-w-0 truncate font-medium">{l.med.name} {l.med.requiresPrescription && <Badge tone="warn">Rx</Badge>}</p>
-        <p className="num shrink-0 font-semibold">{money(l.total)}</p>
+    <li className={`px-2.5 py-1.5 ${hot ? 'bg-mint/60' : ''}`}>
+      <div className="flex items-center gap-1.5">
+        <p className="min-w-0 flex-1 truncate text-[13px] font-medium" title={`${l.med.name} | ${money(l.unitPrice)} each`}>{l.med.name}{l.med.requiresPrescription && <span className="ml-1"><Badge tone="warn">Rx</Badge></span>}</p>
+        <Select value={l.unitType} onChange={(e) => onChange({ unitType: e.target.value })} className="h-7 w-[74px] px-1.5 text-xs" aria-label="Unit"><option value="box">Box</option><option value="strip">Strip</option><option value="unit">Unit</option></Select>
+        <Button variant="secondary" size="sm" className="h-7 w-7 px-0" onClick={() => onChange({ qty: Math.max(1, l.qty - 1) })} aria-label="Less"><Minus className="h-3.5 w-3.5" /></Button>
+        <Input id={`qty-${l.key}`} className="num h-7 w-11 px-1 text-center text-sm" type="number" min="1" value={l.qty}
+          onChange={(e) => onChange({ qty: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onDone(); } }} aria-label="Quantity" />
+        <Button variant="secondary" size="sm" className="h-7 w-7 px-0" onClick={() => onChange({ qty: l.qty + 1 })} aria-label="More"><Plus className="h-3.5 w-3.5" /></Button>
+        <p className="num w-[66px] shrink-0 text-right text-sm font-semibold">{money(l.total)}</p>
+        {l.med.genericName && <button className="rounded p-1 text-muted hover:bg-mint hover:text-ink" onClick={onAlt} title="Alternatives: other brands with the same generic name" aria-label="Alternatives"><ArrowLeftRight className="h-4 w-4" /></button>}
+        <button className="rounded p-1 text-muted hover:bg-danger-soft hover:text-danger" onClick={onRemove} aria-label="Remove"><Trash2 className="h-4 w-4" /></button>
       </div>
-      {(locationText(l.med) || l.med.storage === 'fridge') && <p className="text-xs text-pine-dark">{locationText(l.med)}{l.med.storage === 'fridge' ? `${locationText(l.med) ? ' | ' : ''}Keep in fridge` : ''}</p>}
-      <div className="mt-1 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
-          <Select value={l.unitType} onChange={(e) => onChange({ unitType: e.target.value })} className="h-8 w-[84px] px-2 text-[13px]" aria-label="Unit"><option value="box">Box</option><option value="strip">Strip</option><option value="unit">Unit</option></Select>
-          <Button variant="secondary" size="sm" className="h-8 w-8 px-0" onClick={() => onChange({ qty: Math.max(1, l.qty - 1) })} aria-label="Less"><Minus className="h-4 w-4" /></Button>
-          <Input id={`qty-${l.key}`} className="num h-8 w-14 px-1 text-center" type="number" min="1" value={l.qty}
-            onChange={(e) => onChange({ qty: Math.max(1, parseInt(e.target.value, 10) || 1) })}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onDone(); } }} aria-label="Quantity" />
-          <Button variant="secondary" size="sm" className="h-8 w-8 px-0" onClick={() => onChange({ qty: l.qty + 1 })} aria-label="More"><Plus className="h-4 w-4" /></Button>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="num text-xs text-muted">{money(l.unitPrice)} each</span>
-          {l.med.genericName && <button className="text-xs text-muted underline hover:text-ink" onClick={onAlt} title="Other brands with the same generic name">Alternatives</button>}
-          <button className="rounded p-1.5 text-muted hover:bg-danger-soft hover:text-danger" onClick={onRemove} aria-label="Remove"><Trash2 className="h-4 w-4" /></button>
-        </div>
-      </div>
-      {l.short && <p className="mt-1 text-xs font-medium text-danger">Only {stockText(l.stock.display)} available{l.stock.expired ? ` (${l.stock.expired} expired units cannot be sold)` : ''}</p>}
-      {!l.unitPrice && <p className="mt-1 text-xs font-medium text-danger">Price not set for this unit</p>}
+      {where && <p className="text-[11px] text-pine-dark">{where}</p>}
+      {l.short && <p className="text-xs font-medium text-danger">Only {stockText(l.stock.display)} available{l.stock.expired ? ` (${l.stock.expired} expired units cannot be sold)` : ''}</p>}
+      {!l.unitPrice && <p className="text-xs font-medium text-danger">Price not set for this unit</p>}
     </li>
   );
 }

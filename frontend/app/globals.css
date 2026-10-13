@@ -52,3 +52,5 @@ body { background: var(--color-paper); color: var(--color-ink); font-family: var
   .print-labels .label { border: 0; break-inside: avoid; }
   .print-labels .label-roll .label { break-after: page; page-break-after: always; }
 }
+
+.no-scrollbar { scrollbar-width: none; } .no-scrollbar::-webkit-scrollbar { display: none; }

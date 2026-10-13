@@ -9,7 +9,7 @@ Legend: **Done** = built and covered by tests, **New** = added beyond the first 
 | 3 | Medicine inventory | Done | Name, generic, category, maker, barcode, prices, min stock, supplier, pack info, Rx flag |
 | 4 | Units (box / strip / unit) | Done | Stored in base units, converted both ways |
 | 5 | Batch and expiry | Done | 30/60/90-day alerts, expired blocked at sale, FEFO |
-| 6 | POS / billing | Done + New | Retail/wholesale, barcode, split payments, hold bills, receipts (80mm/A4), returns. **New:** in-memory catalog, instant search, browse list, shortcuts, exact-cash F9, `3*name`, `10%` discount, double-bill protection, sounds |
+| 6 | POS / billing | Done + New | Retail/wholesale, barcode, split payments, hold bills, receipts (80mm/A4), returns. **New:** in-memory catalog, instant search, browse list, shortcuts, exact-cash F9, `3*name`, percent discount (type 2 = 2%), double-bill protection, sounds |
 | 7 | Purchases | Done | Batch/expiry on receipt, partial payment, ledger update |
 | 8 | Supplier ledger | Done | Statements, payments, purchase returns |
 | 9 | Customer credit (udhaar) | Done | Ledger, payments, credit limit, printable statement |

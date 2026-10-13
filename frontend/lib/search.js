@@ -170,12 +170,18 @@ export function findByBarcode(items, code) {
   return items.find((i) => i._b === c);
 }
 
-// "10%" -> 10% of subtotal, "250" -> 250. Never more than the subtotal, never negative.
+// What the cashier types in the Discount box:
+//   "2" or "2%"      -> 2 percent of the bill
+//   "rs 50" / "50rs" -> a fixed Rs 50
+// Never more than the bill, never negative; anything else counts as no discount.
 export function parseDiscount(text, subtotal) {
-  const s = String(text ?? '').trim();
+  const s = String(text ?? '').trim().toLowerCase();
   if (!s) return 0;
-  const pct = /^(\d+(?:\.\d+)?)\s*%$/.exec(s);
-  const v = pct ? (subtotal * parseFloat(pct[1])) / 100 : Number(s);
+  const money = /^(?:rs\.?\s*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*rs\.?)$/.exec(s);
+  const percent = /^(\d+(?:\.\d+)?)\s*%?$/.exec(s);
+  let v = NaN;
+  if (money) v = parseFloat(money[1] ?? money[2]);
+  else if (percent) v = (subtotal * parseFloat(percent[1])) / 100;
   if (!Number.isFinite(v) || v < 0) return 0;
   return Math.min(Math.round((v + Number.EPSILON) * 100) / 100, subtotal);
 }

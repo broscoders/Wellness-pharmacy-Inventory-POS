@@ -25,7 +25,7 @@ The server still has the last word: when a bill is completed, the server re-chec
 | **F9** | Complete the sale |
 | **Enter** on the receipt window | Start a new sale (**P** prints) |
 
-If the customer pays the exact amount in cash, the cashier types nothing: F9 completes the bill with exact cash. For bigger notes there are quick buttons and the change is shown. Discount accepts an amount (`50`) or a percentage (`10%`).
+If the customer pays the exact amount in cash, the cashier types nothing: F9 completes the bill with exact cash. For bigger notes there are quick buttons and the change is shown. The Discount box is in percent: type `2` for 2% off (the rupee amount is shown next to it). For a fixed amount type `rs 50`.
 
 ## Cash closing (every cashier, every shift)
 1. **Start of shift:** Cash closing > count the drawer > enter the amount > Open shift.
