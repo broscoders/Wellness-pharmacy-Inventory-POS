@@ -3,6 +3,7 @@ const Customer = require('../models/Customer');
 const Sale = require('../models/Sale');
 const SaleReturn = require('../models/SaleReturn');
 const ApiError = require('../utils/ApiError');
+const { maxDiscountPercent } = require('./settings.service');
 const { toBase, unitsPerBox, unitPrice } = require('../utils/units');
 const { round2 } = require('../utils/money');
 const { nextNumber } = require('../utils/counter');
@@ -85,6 +86,12 @@ async function checkout(input, user) {
 
     subtotal = round2(subtotal);
     if (discount > subtotal) throw ApiError.badRequest('Discount cannot be more than the bill amount');
+    // Staff without the owner's rights can only give discounts up to the limit set in Shop settings (default 10%).
+    if (discount > 0 && !user.permissions().includes('sales:discount_any')) {
+      const max = await maxDiscountPercent();
+      const allowed = round2((subtotal * max) / 100);
+      if (discount > allowed + 0.001) throw ApiError.badRequest(`Your discount limit is ${max}% of the bill (Rs ${allowed}). Ask the owner for a bigger discount.`);
+    }
     const total = round2(subtotal - discount);
 
     // Spread the invoice discount over items so returns refund the price actually paid.

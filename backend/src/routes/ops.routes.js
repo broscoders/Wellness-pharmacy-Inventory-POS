@@ -4,8 +4,8 @@ const { protect, requirePermission } = require('../middleware/auth');
 
 router.use(protect);
 router.get('/expiry-plan', requirePermission('inventory:view'), c.expiry);
-router.get('/udhaar-reminders', requirePermission('customers:view'), c.udhaar);
-router.post('/udhaar-reminders/:id/sent', requirePermission('customers:view'), c.markReminded);
+router.get('/udhaar-reminders', requirePermission('customers:credit'), c.udhaar);
+router.post('/udhaar-reminders/:id/sent', requirePermission('customers:credit'), c.markReminded);
 router.get('/daily-summary', requirePermission('reports:view'), c.daily);
 router.get('/backup/manifest', requirePermission('settings:manage'), c.backupManifest);
 router.post('/backup/done', requirePermission('settings:manage'), c.backupDone);

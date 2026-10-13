@@ -31,6 +31,8 @@ Legend: **Done** = built and covered by tests, **New** = added beyond the first 
 | 26 | **Udhaar reminders** | New | Overdue customers (days since last payment), one-tap WhatsApp with the message written, remembers when each was last reminded. WhatsApp receipt from the POS |
 | 27 | **Expiry returns** | New | Expired and slow near-expiry stock grouped by supplier, with a sell-through estimate (will it sell before it expires?), print list, WhatsApp to supplier |
 | 28 | **Daily summary and backup** | New | End-of-day figures on one screen with WhatsApp text (sales, profit, cash differences, udhaar, stock alerts); in-app backup file + reminder when older than 7 days; restore from that file |
+| 29 | **Role-based access (hardened)** | New | Cost, profit and margins hidden from counter staff in every screen and every API answer; cashiers see only their own bills; discount limit; udhaar limit owner-only; supplier payments blocked for counter staff; counter home instead of the owner dashboard; screens guarded by role; blind cash closing; temporary passwords must be changed at first sign-in. See `docs/ROLES.md` |
+| 30 | **Stock take** | New | Blind physical count by rack, review of differences, adjustments with reason, safe against sales during the count |
 | 17 | Operations | Done + New | Backup/restore, demo data, go-live reset, import. **New:** automated tests for catalog, idempotent checkout and POS screen |
 
 ## Recommended next steps (not built yet, in priority order)

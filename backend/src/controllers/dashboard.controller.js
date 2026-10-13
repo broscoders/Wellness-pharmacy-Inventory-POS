@@ -5,6 +5,7 @@ const Customer = require('../models/Customer');
 const Supplier = require('../models/Supplier');
 const Batch = require('../models/Batch');
 const Medicine = require('../models/Medicine');
+const Shift = require('../models/Shift');
 const asyncHandler = require('../utils/asyncHandler');
 const { round2, dayRange } = require('../utils/money');
 const { unitsPerBox } = require('../utils/units');
@@ -13,7 +14,26 @@ const { salesByDay, productStats } = require('../services/analytics.service');
 
 const sum = (arr, f) => arr.reduce((s, x) => s + f(x), 0);
 
+// What counter staff (cashier, pharmacist, inventory) get instead of the owner's dashboard: their own day, their
+// shift and what needs attention. No profit, purchases, payables or stock value.
+async function counterHome(user) {
+  const { start, end } = dayRange();
+  const perms = user.permissions();
+  const [mine, recent, shift, alerts] = await Promise.all([
+    Sale.find({ createdBy: user._id, createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } }).select('total payments changeGiven').lean(),
+    Sale.find({ createdBy: user._id }).select('-items').sort({ createdAt: -1 }).limit(8),
+    perms.includes('shifts:use') ? Shift.findOne({ user: user._id, status: 'open' }).select('shiftNo openedAt openingCash').lean() : null,
+    perms.includes('inventory:view') ? getAlerts() : null,
+  ]);
+  const pay = (m) => sum(mine, (s) => sum((s.payments || []).filter((p) => p.method === m), (p) => p.amount));
+  return {
+    today: { bills: mine.length, total: round2(sum(mine, (s) => s.total)), cash: round2(pay('cash') - sum(mine, (s) => s.changeGiven || 0)), card: round2(pay('card')), bank: round2(pay('bank_transfer')), credit: round2(pay('credit')) },
+    recentSales: recent, shift: shift || null, alerts: alerts ? alerts.counts : null,
+  };
+}
+
 const summary = asyncHandler(async (req, res) => {
+  if (!req.user.permissions().includes('reports:view')) return res.json({ success: true, mode: 'counter', data: await counterHome(req.user) });
   const { start, end } = dayRange();
   const range = { $gte: start, $lt: end };
 

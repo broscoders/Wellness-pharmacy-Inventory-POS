@@ -89,12 +89,13 @@ async function pricingIssues() {
     const entries = ['box', 'strip', 'unit'].filter((k) => sp[k] > 0 && cost > 0).map((k) => ({ k, price: sp[k], margin: pct(sp[k] - costOf[k], sp[k]) }));
     const worst = entries.length ? entries.reduce((a, b) => (b.margin < a.margin ? b : a)) : null;
     const base = { _id: m._id, name: m.name, purchasePrice: cost, salePriceBox: sp.box || 0, mrp: m.mrp || 0 };
+    if (!(cost > 0)) out.push({ ...base, issue: 'no_cost', detail: 'Purchase price is not set, so profit on this medicine is overstated' });
     if (!sp.box && !sp.strip && !sp.unit) out.push({ ...base, issue: 'no_price', detail: 'No sale price set: it cannot be sold' });
     else if (worst && worst.margin < 0) out.push({ ...base, issue: 'below_cost', margin: worst.margin, detail: `Sold below cost per ${worst.k}` });
     else if (worst && worst.margin < 5) out.push({ ...base, issue: 'low_margin', margin: worst.margin, detail: `Margin is only ${worst.margin}% per ${worst.k}` });
     if (m.mrp > 0 && sp.box > m.mrp) out.push({ ...base, issue: 'above_mrp', detail: `Box price ${sp.box} is above the MRP ${m.mrp}` });
   }
-  const order = { below_cost: 0, above_mrp: 1, no_price: 2, low_margin: 3 };
+  const order = { below_cost: 0, above_mrp: 1, no_price: 2, no_cost: 3, low_margin: 4 };
   return out.sort((a, b) => order[a.issue] - order[b.issue] || (a.margin ?? 0) - (b.margin ?? 0));
 }
 

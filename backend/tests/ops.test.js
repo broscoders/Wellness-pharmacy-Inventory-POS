@@ -60,7 +60,10 @@ test('cash closing and purchase orders', async (t) => {
     assert.strictEqual((await call('POST', `/shifts/${sid}/movement`, { type: 'out', amount: 100, reason: 'Office tea' }, c1)).status, 200);
     assert.strictEqual((await call('POST', `/shifts/${sid}/movement`, { type: 'out', amount: 100, reason: 'Not my shift' }, c2)).status, 403); // someone else's shift
 
-    const live = (await call('GET', '/shifts/current', null, c1)).data.live;
+    // blind closing: the cashier's own view has no cash workings; the owner sees them
+    const blind = (await call('GET', '/shifts/current', null, c1)).data.live;
+    assert.ok(!('expectedCash' in blind) && !('cashSales' in blind));
+    const live = (await call('GET', `/shifts/${sid}`, null, owner)).data.live;
     assert.strictEqual(live.cashSales, 550);
     assert.strictEqual(live.cardSales, 110);
     assert.strictEqual(live.salesCount, 2);
@@ -87,7 +90,7 @@ test('cash closing and purchase orders', async (t) => {
     assert.strictEqual((await call('POST', `/customers/${cust._id}/payments`, { amount: 100, method: 'cash' }, c1)).status, 201);
     const ret = await call('POST', `/sales/${sale._id}/return`, { items: [{ saleItem: sale.items[0]._id, unitType: 'strip', quantity: 1 }], reason: 'wrong strip', refundTo: 'cash' }, owner);
     assert.strictEqual(ret.status, 201); // owner's return, not this cashier's drawer
-    const live = (await call('GET', `/shifts/${cur._id}`, null, c1)).data.live;
+    const live = (await call('GET', `/shifts/${cur._id}`, null, owner)).data.live;
     assert.strictEqual(live.customerPayments, 100);
     assert.strictEqual(live.creditSales, 220);
     assert.strictEqual(live.expectedCash, 1400 + 100);

@@ -5,8 +5,9 @@ import ResourcePage, { ActiveBadge } from '@/components/ResourcePage';
 import LedgerModal from '@/components/LedgerModal';
 import { Badge, Button } from '@/components/ui';
 import { money } from '@/lib/format';
+import { useAuth } from '@/context/AuthContext';
 
-const fields = [
+const allFields = [
   { key: 'name', label: 'Name', required: true },
   { key: 'phone', label: 'Phone' },
   { key: 'type', label: 'Customer type', type: 'select', options: [{ value: 'retail', label: 'Retail' }, { value: 'wholesale', label: 'Wholesale' }] },
@@ -16,12 +17,16 @@ const fields = [
 ];
 
 export default function CustomersPage() {
+  const { can } = useAuth();
+  // Only the owner sets udhaar limits or archives customers; for everyone else the field is simply not there.
+  const ownerRights = can('customers:credit');
+  const fields = ownerRights ? allFields : allFields.filter((f) => f.key !== 'creditLimit');
   const [ledger, setLedger] = useState(null);
   const [tick, setTick] = useState(0);
   return (
     <>
       <ResourcePage key={tick} title="Customers" subtitle="Customer records and udhaar (credit) balances" endpoint="/customers" manage="customers:manage" noun="customer" newLabel="Add customer"
-        searchPlaceholder="Search name or phone..." archivable fields={fields} defaults={{ type: 'retail', creditLimit: 0 }}
+        searchPlaceholder="Search name or phone..." archivable={ownerRights} fields={fields} defaults={ownerRights ? { type: 'retail', creditLimit: 0 } : { type: 'retail' }}
         columns={[
           { label: 'Customer', render: (c) => <><p className="font-medium">{c.name}</p><p className="text-xs text-muted">{c.phone || '-'}</p></> },
           { label: 'Type', render: (c) => <span className="capitalize">{c.type}</span> },

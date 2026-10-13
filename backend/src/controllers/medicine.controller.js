@@ -38,8 +38,10 @@ const createSchema = baseSchema;
 const updateSchema = baseSchema.partial();
 
 // Empty barcode must be removed, otherwise the unique+sparse index treats '' as a real value.
-const clean = (body) => {
+const clean = (body, user) => {
   const b = { ...body };
+  // Only people allowed to see costs may set them: a pharmacist who cannot see the cost must not overwrite it with 0 either.
+  if (user && !user.permissions().includes('costs:view')) delete b.purchasePrice;
   if (b.barcode === '') delete b.barcode;
   if (b.category === null) delete b.category;
   if (b.supplier === null) delete b.supplier;
@@ -123,7 +125,7 @@ const byBarcode = asyncHandler(async (req, res) => {
 
 const create = asyncHandler(async (req, res) => {
   assertMrp(req.body.mrp, req.body.salePrice);
-  const med = await Medicine.create(clean(req.body));
+  const med = await Medicine.create(clean(req.body, req.user));
   await audit(req, 'medicine.create', 'Medicine', med._id, { name: med.name });
   res.status(201).json({ success: true, data: med });
 });
@@ -131,7 +133,7 @@ const create = asyncHandler(async (req, res) => {
 const update = asyncHandler(async (req, res) => {
   const before = await Medicine.findById(req.params.id);
   if (!before) throw ApiError.notFound('Medicine not found');
-  const body = clean(req.body);
+  const body = clean(req.body, req.user);
 
   // Changing pack structure after stock exists would silently change what stock means.
   const packChanged =

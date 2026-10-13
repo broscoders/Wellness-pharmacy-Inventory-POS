@@ -70,12 +70,14 @@ const changePassword = asyncHandler(async (req, res) => {
   if (!(await user.comparePassword(req.body.currentPassword))) {
     throw ApiError.badRequest('Current password is incorrect');
   }
+  if (req.body.newPassword === req.body.currentPassword) throw ApiError.badRequest('Choose a different password from the current one');
   user.password = req.body.newPassword;
+  user.mustChangePassword = false;
   user.tokenVersion += 1; // logs out all other sessions
   await user.save();
   await audit(req, 'auth.password_change', 'User', user._id);
   res.cookie(REFRESH_COOKIE, signRefresh(user), cookieOptions());
-  res.json({ success: true, accessToken: signAccess(user), message: 'Password updated' });
+  res.json({ success: true, accessToken: signAccess(user), user: user.toSafeJSON(), message: 'Password updated' });
 });
 
 module.exports = { login, refresh, logout, me, changePassword, loginSchema, changePasswordSchema };

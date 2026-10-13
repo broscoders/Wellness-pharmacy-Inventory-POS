@@ -4,6 +4,7 @@ const Setting = require('../models/Setting');
 const asyncHandler = require('../utils/asyncHandler');
 const audit = require('../utils/audit');
 const validate = require('../middleware/validate');
+const { clearSettingsCache } = require('../services/settings.service');
 const { protect, requirePermission } = require('../middleware/auth');
 
 const schema = z.object({
@@ -15,6 +16,8 @@ const schema = z.object({
   licenseNo: z.string().trim().max(60).optional(),
   ntn: z.string().trim().max(40).optional(),
   receiptFooter: z.string().trim().max(200).optional(),
+  maxDiscountPercent: z.number().min(0).max(100).optional(),
+  defaultCreditLimit: z.number().min(0).optional(),
 });
 
 const load = async () => (await Setting.findOne({ key: 'main' })) || new Setting({ key: 'main' });
@@ -26,6 +29,7 @@ router.get('/', protect, asyncHandler(async (req, res) => {
 
 router.put('/', protect, requirePermission('settings:manage'), validate(schema), asyncHandler(async (req, res) => {
   const doc = await Setting.findOneAndUpdate({ key: 'main' }, { $set: req.body, $setOnInsert: { key: 'main' } }, { upsert: true, returnDocument: 'after', runValidators: true });
+  clearSettingsCache();
   await audit(req, 'settings.update', 'Setting', doc._id, req.body);
   res.json({ success: true, data: doc });
 }));

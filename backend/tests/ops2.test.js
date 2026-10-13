@@ -85,7 +85,8 @@ test('barcodes, expiry plan, udhaar reminders, daily summary, backup', async (t)
     assert.strictEqual(line('Fast Seller', 'FA-FAR'), undefined);
     assert.strictEqual(g.expiredValue, 200);               // 50 expired units at Rs 4 each (box 400 / 100 units)
     assert.ok(r.totals.atRiskValue > 0 && r.totals.expiredValue > 0);
-    assert.strictEqual((await call('GET', '/ops/expiry-plan', null, cashier)).status, 200); // cashier role can view inventory
+    assert.strictEqual((await call('GET', '/ops/expiry-plan', null, cashier)).status, 403); // it shows costs: not for the counter
+    assert.strictEqual((await call('GET', '/ops/expiry-plan', null, owner)).status, 200);
   });
 
   await t.test('udhaar reminders list only overdue balances and remember when we asked', async () => {
@@ -103,7 +104,8 @@ test('barcodes, expiry plan, udhaar reminders, daily summary, backup', async (t)
     assert.ok(row.daysSince >= 40);
     assert.strictEqual(row.phone, '03001234567');
     assert.strictEqual(row.lastReminderAt, null);
-    assert.strictEqual((await call('POST', `/ops/udhaar-reminders/${cust._id}/sent`, null, cashier)).status, 200);
+    assert.strictEqual((await call('GET', '/ops/udhaar-reminders', null, cashier)).status, 403); // reminders are the owner's call
+    assert.strictEqual((await call('POST', `/ops/udhaar-reminders/${cust._id}/sent`, null, owner)).status, 200);
     row.lastReminderAt = (await call('GET', '/ops/udhaar-reminders?minDays=15', null, owner)).data.find((x) => x.name === 'Late Payer').lastReminderAt;
     assert.ok(row.lastReminderAt);
     // paying part of it resets the clock

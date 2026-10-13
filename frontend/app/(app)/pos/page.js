@@ -137,6 +137,9 @@ export default function PosPage() {
 
   const subtotal = round2(lines.reduce((s, l) => s + l.total, 0));
   const disc = parseDiscount(discountText, subtotal);
+  // staff without the owner's rights have a discount limit (Shop settings); the server enforces it too
+  const maxPct = can('sales:discount_any') ? 100 : (settings.maxDiscountPercent ?? 10);
+  const discOver = disc > round2((subtotal * maxPct) / 100) + 0.001;
   const total = round2(subtotal - disc);
   const entered = { cash: Number(pay.cash) || 0, card: Number(pay.card) || 0, bank_transfer: Number(pay.bank_transfer) || 0, credit: Number(pay.credit) || 0 };
   const nothingTyped = !entered.cash && !entered.card && !entered.bank_transfer && !entered.credit;
@@ -147,7 +150,7 @@ export default function PosPage() {
   const needsRx = lines.some((l) => l.med?.requiresPrescription);
   const hasShort = lines.some((l) => l.short || l.missing);
   const hasNoPrice = lines.some((l) => l.med && !l.unitPrice);
-  const canPay = lines.length > 0 && total > 0 && remaining <= 0 && !hasShort && !hasNoPrice && (!needsRx || rx || !!rxLink) && (eff.credit === 0 || !!customer);
+  const canPay = lines.length > 0 && total > 0 && !discOver && remaining <= 0 && !hasShort && !hasNoPrice && (!needsRx || rx || !!rxLink) && (eff.credit === 0 || !!customer);
 
   const cashButtons = useMemo(() => {
     if (!total) return [];
@@ -356,6 +359,7 @@ export default function PosPage() {
                 {!rxLink && <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={rx} onChange={(e) => setRx(e.target.checked)} /> I have checked the prescription for the Rx medicines.</label>}
               </div>
             )}
+            {discOver && <p className="text-sm font-medium text-danger">Your discount limit is {maxPct}% of the bill. Ask the owner for more.</p>}
             {eff.credit > 0 && !customer && <p className="text-sm text-danger">Choose a customer to record udhaar.</p>}
             <div className="num min-h-5 text-sm">
               {total > 0 && remaining > 0 && <p className="font-medium text-danger">Still to pay: {money(remaining)}</p>}

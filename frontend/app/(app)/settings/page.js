@@ -28,7 +28,7 @@ export default function SettingsPage() {
     setBusy(true); setErr(''); setSaved(false);
     try {
       const { shopName, tagline, address, phone, email, licenseNo, ntn, receiptFooter } = f;
-      await api('/settings', { method: 'PUT', body: { shopName, tagline, address, phone, email, licenseNo, ntn, receiptFooter } });
+      await api('/settings', { method: 'PUT', body: { shopName, tagline, address, phone, email, licenseNo, ntn, receiptFooter, maxDiscountPercent: Number(f.maxDiscountPercent ?? 10), defaultCreditLimit: Number(f.defaultCreditLimit ?? 5000) } });
       await refresh(); setSaved(true);
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
   }
@@ -49,6 +49,8 @@ export default function SettingsPage() {
             <Field label="Email"><Input value={f.email} onChange={set('email')} /></Field>
             <Field label="Drug sale license no."><Input value={f.licenseNo} onChange={set('licenseNo')} /></Field>
             <Field label="NTN"><Input value={f.ntn} onChange={set('ntn')} /></Field>
+            <Field label="Biggest discount staff can give (% of a bill)" hint="Only the owner can go above this"><Input className="num" type="number" min="0" max="100" value={f.maxDiscountPercent ?? 10} onChange={set('maxDiscountPercent')} /></Field>
+            <Field label="Udhaar limit for customers added by staff" hint="The owner can raise it per customer. 0 = no limit"><Input className="num" type="number" min="0" value={f.defaultCreditLimit ?? 5000} onChange={set('defaultCreditLimit')} /></Field>
             <div className="sm:col-span-2"><Field label="Receipt footer message"><Textarea value={f.receiptFooter} onChange={set('receiptFooter')} /></Field></div>
           </div>
         </Card>

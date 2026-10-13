@@ -70,14 +70,19 @@ const create = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: sale });
 });
 
+// Cashiers see only their own bills; the owner and the pharmacist (who handle returns for any invoice) see everyone's.
+const seesAll = (req) => req.user.permissions().includes('sales:view_all');
+const assertMine = (req, sale) => { if (!seesAll(req) && String(sale.createdBy) !== String(req.user._id)) throw ApiError.forbidden('You can only open your own bills'); };
+
 const list = asyncHandler(async (req, res) => {
   const { page, limit, skip } = getPagination(req.query);
   const filter = {};
+  if (!seesAll(req)) filter.createdBy = req.user._id;
   if (req.query.search) filter.invoiceNo = new RegExp(escapeRegex(req.query.search), 'i');
   if (req.query.customer) filter.customer = req.query.customer;
   if (req.query.status) filter.status = req.query.status;
   if (req.query.type) filter.type = req.query.type;
-  if (req.query.staff) filter.createdBy = req.query.staff;
+  if (req.query.staff && seesAll(req)) filter.createdBy = req.query.staff;
   if (req.query.from || req.query.to) {
     filter.createdAt = {};
     if (req.query.from) filter.createdAt.$gte = new Date(req.query.from);
@@ -93,6 +98,7 @@ const list = asyncHandler(async (req, res) => {
 const getOne = asyncHandler(async (req, res) => {
   const sale = await Sale.findById(req.params.id).populate('customer', 'name phone');
   if (!sale) throw ApiError.notFound('Invoice not found');
+  assertMine(req, sale);
   const returns = await SaleReturn.find({ sale: sale._id }).sort({ createdAt: -1 });
   res.json({ success: true, data: sale, returns });
 });
@@ -100,6 +106,7 @@ const getOne = asyncHandler(async (req, res) => {
 const byInvoice = asyncHandler(async (req, res) => {
   const sale = await Sale.findOne({ invoiceNo: String(req.params.invoiceNo).toUpperCase() }).populate('customer', 'name phone');
   if (!sale) throw ApiError.notFound('Invoice not found');
+  assertMine(req, sale);
   const returns = await SaleReturn.find({ sale: sale._id }).sort({ createdAt: -1 });
   res.json({ success: true, data: sale, returns });
 });
@@ -123,6 +130,7 @@ const cancel = asyncHandler(async (req, res) => {
 const listReturns = asyncHandler(async (req, res) => {
   const { page, limit, skip } = getPagination(req.query);
   const filter = {};
+  if (!seesAll(req)) filter.createdBy = req.user._id;
   if (req.query.sale) filter.sale = req.query.sale;
   const [data, total] = await Promise.all([SaleReturn.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit), SaleReturn.countDocuments(filter)]);
   res.json({ success: true, data, meta: pageMeta(total, page, limit) });

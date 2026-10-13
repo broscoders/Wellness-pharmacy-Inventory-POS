@@ -18,6 +18,11 @@ const ALL = [
   'settings:manage',
   'shifts:use', 'shifts:manage',
   'payroll:manage',
+  // Sensitive extras (admin only unless listed below)
+  'costs:view',          // purchase prices, profit and margins anywhere in the app
+  'sales:view_all',      // see every cashier's bills (others see only their own)
+  'sales:discount_any',  // discount beyond the shop's limit
+  'customers:credit',    // change a customer's credit limit or archive a customer
 ];
 
 const ROLE_PERMISSIONS = {
@@ -28,14 +33,13 @@ const ROLE_PERMISSIONS = {
     'medicines:view', 'medicines:manage',
     'inventory:view', 'inventory:manage',
     'customers:view',
-    'pos:use', 'sales:view', 'sales:return', 'sales:discount',
+    'pos:use', 'sales:view', 'sales:view_all', 'sales:return', 'sales:discount',
     'prescriptions:view', 'prescriptions:manage',
     'shifts:use',
   ],
   cashier: [
     'dashboard:view',
     'medicines:view',
-    'inventory:view',
     'customers:view', 'customers:manage',
     'pos:use', 'sales:view', 'sales:discount',
     'payments:manage',
@@ -49,6 +53,7 @@ const ROLE_PERMISSIONS = {
     'suppliers:view', 'suppliers:manage',
     'purchases:view', 'purchases:manage', 'purchases:return',
     'payments:manage',
+    'costs:view',
   ],
 };
 

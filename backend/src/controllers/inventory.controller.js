@@ -5,7 +5,7 @@ const StockMovement = require('../models/StockMovement');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
 const audit = require('../utils/audit');
-const { getPagination, pageMeta } = require('../utils/pagination');
+const { getPagination, pageMeta, escapeRegex } = require('../utils/pagination');
 const { toBase, fromBase, parseExpiry, unitsPerBox } = require('../utils/units');
 const { applyMovement } = require('../services/stock.service');
 const { expiryStatus, DAY, getAlerts, suggestedBoxes } = require('../services/inventory.service');
@@ -47,7 +47,7 @@ const createBatch = asyncHandler(async (req, res) => {
     batchNumber: req.body.batchNumber,
     expiryDate: parseExpiry(req.body.expiryDate),
     quantity: 0,
-    purchasePricePerBox: req.body.purchasePricePerBox ?? med.purchasePrice,
+    purchasePricePerBox: (req.user.permissions().includes('costs:view') ? req.body.purchasePricePerBox : undefined) ?? med.purchasePrice,
     supplier: req.body.supplier || med.supplier,
   });
   await applyMovement({
@@ -103,6 +103,60 @@ const adjust = asyncHandler(async (req, res) => {
   });
   await audit(req, 'inventory.adjust', 'Batch', batch._id, { medicine: med.name, batch: batch.batchNumber, mode, delta, reason });
   res.json({ success: true, data: updated });
+});
+
+// ---- Stock take (physical count) ----
+// The counting sheet deliberately does NOT contain the system quantities, so the person counts what is really on the shelf
+// instead of copying the screen. The review step then shows the differences; applying writes one stock adjustment per
+// difference (with the reason and the person recorded) and refuses if stock moved while the count was being reviewed.
+const takeSheetLimit = 300;
+const takeSheet = asyncHandler(async (req, res) => {
+  const filter = { isActive: true };
+  if (req.query.rack === '__none__') filter.$or = [{ rack: { $exists: false } }, { rack: '' }, { rack: null }];
+  else if (req.query.rack) filter.rack = new RegExp(`^${escapeRegex(String(req.query.rack))}$`, 'i');
+  if (req.query.search) filter.name = new RegExp(escapeRegex(String(req.query.search)), 'i');
+  const meds = await Medicine.find(filter).select('name genericName rack row side stripsPerBox unitsPerStrip').sort({ rack: 1, row: 1, name: 1 }).limit(takeSheetLimit).lean();
+  const batches = await Batch.find({ medicine: { $in: meds.map((m) => m._id) }, isActive: true, quantity: { $gt: 0 } }).select('medicine batchNumber expiryDate').sort({ expiryDate: 1 }).lean();
+  const byMed = new Map();
+  for (const b of batches) { const k = String(b.medicine); if (!byMed.has(k)) byMed.set(k, []); byMed.get(k).push(b); }
+  const rows = meds.flatMap((m) => (byMed.get(String(m._id)) || []).map((b) => ({ batch: b._id, batchNumber: b.batchNumber, expiryDate: b.expiryDate, medicine: { _id: m._id, name: m.name, genericName: m.genericName, rack: m.rack || '', row: m.row || '', side: m.side || '', stripsPerBox: m.stripsPerBox, unitsPerStrip: m.unitsPerStrip } })));
+  res.json({ success: true, data: rows, truncated: meds.length >= takeSheetLimit });
+});
+
+const stockTakeSchema = z.object({
+  lines: z.array(z.object({ batch: objectId, counted: z.number().int().min(0), expected: z.number().int().min(0).optional() })).min(1, 'Count at least one batch').max(500),
+  note: z.string().trim().min(3, 'A short note is required (for example: "Rack A monthly count")').max(150),
+  apply: z.boolean().optional(),
+});
+
+const stockTake = asyncHandler(async (req, res) => {
+  const { lines, note, apply } = req.body;
+  const ids = lines.map((l) => l.batch);
+  if (new Set(ids).size !== ids.length) throw ApiError.badRequest('A batch is on the count twice');
+  const batches = await Batch.find({ _id: { $in: ids } }).lean();
+  const meds = await Medicine.find({ _id: { $in: batches.map((b) => b.medicine) } }).select('name stripsPerBox unitsPerStrip purchasePrice').lean();
+  const medById = new Map(meds.map((m) => [String(m._id), m]));
+  const batchById = new Map(batches.map((b) => [String(b._id), b]));
+  const rows = lines.map((l) => {
+    const b = batchById.get(String(l.batch)); if (!b) throw ApiError.notFound('A batch on this count was not found');
+    const m = medById.get(String(b.medicine));
+    const difference = l.counted - b.quantity;
+    const perUnit = ((b.purchasePricePerBox || m.purchasePrice || 0) / unitsPerBox(m));
+    return { batch: b._id, medicine: m._id, name: m.name, batchNumber: b.batchNumber, expiryDate: b.expiryDate, expired: b.expiryDate < new Date(), system: b.quantity, counted: l.counted, expected: l.expected, difference, costValue: Math.round(difference * perUnit * 100) / 100 };
+  });
+  const changed = rows.filter((r) => r.difference !== 0);
+  const totals = { counted: rows.length, matched: rows.length - changed.length, short: changed.filter((r) => r.difference < 0).length, over: changed.filter((r) => r.difference > 0).length, costValue: Math.round(changed.reduce((s, r) => s + r.costValue, 0) * 100) / 100 };
+  if (!apply) return res.json({ success: true, applied: false, data: rows, totals });
+
+  const stale = changed.filter((r) => r.expected === undefined || r.expected !== r.system);
+  if (stale.length) throw ApiError.conflict(`Stock changed while you were counting (${stale.slice(0, 3).map((r) => r.name).join(', ')}${stale.length > 3 ? '...' : ''}). Review the differences again before applying.`);
+  const applied = [];
+  for (const r of changed) {
+    await applyMovement({ batchId: r.batch, delta: r.difference, type: r.difference < 0 && r.expired ? 'expired_writeoff' : 'adjustment', reason: `Stock take: ${note}`, userId: req.user._id });
+    applied.push(r.batch);
+  }
+  await audit(req, 'inventory.stock_take', 'Batch', undefined, { note, counted: rows.length, adjusted: changed.length, short: totals.short, over: totals.over });
+  res.json({ success: true, applied: true, adjusted: applied.length, data: rows, totals });
 });
 
 const movements = asyncHandler(async (req, res) => {
@@ -163,4 +217,4 @@ const reorder = asyncHandler(async (req, res) => {
   res.json({ success: true, data: list, totals: { items: rows.length, estCost: list.reduce((s, g) => s + g.total, 0) } });
 });
 
-module.exports = { reorder, createBatch, listBatches, adjust, movements, alerts, summary, createBatchSchema, adjustSchema };
+module.exports = { takeSheet, stockTake, stockTakeSchema, reorder, createBatch, listBatches, adjust, movements, alerts, summary, createBatchSchema, adjustSchema };

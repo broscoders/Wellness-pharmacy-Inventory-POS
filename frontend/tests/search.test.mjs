@@ -158,3 +158,18 @@ test('messages mention the name and amount', () => {
   const d = dailyMessage({ shopName: 'Wellness', date: '2026-10-12', sales: { total: 1000, bills: 4, cash: 600, card: 100, bank: 0, credit: 300 }, profit: { grossProfit: 200, grossMarginPercent: 20, expenses: 50, netProfit: 150 }, udhaar: { given: 300, received: 100, totalOwed: 900 }, payables: 400, cash: { shiftsClosed: 1, difference: -50, shortOrExtra: [{ user: 'Ali', difference: -50 }] }, stockAlerts: { outOfStock: 1, lowStock: 2, expired: 0, nearExpiry30: 3 }, topSellers: [{ name: 'Panadol' }] });
   assert.ok(d.includes('Rs 1,000') && d.includes('CASH DIFFERENCE') && d.includes('Net profit today: Rs 150') && d.includes('Panadol'));
 });
+
+import { homeFor, pageFor } from '../lib/access.js';
+test('each role lands on its own home screen', () => {
+  const perms = (...p) => (x) => p.includes(x);
+  assert.equal(homeFor(perms('reports:view', 'pos:use')), '/dashboard');   // owner
+  assert.equal(homeFor(perms('pos:use', 'sales:view')), '/pos');            // cashier / pharmacist
+  assert.equal(homeFor(perms('purchases:view', 'dashboard:view')), '/dashboard'); // inventory staff
+});
+test('an address maps to the menu item that owns it (longest match)', () => {
+  const items = [{ href: '/medicines', perm: 'medicines:view' }, { href: '/purchases', perm: 'purchases:view' }, { href: '/purchase-orders', perm: 'purchases:view' }];
+  assert.equal(pageFor('/medicines', items).perm, 'medicines:view');
+  assert.equal(pageFor('/medicines/import', items).perm, 'medicines:manage'); // extra page, stricter than the list
+  assert.equal(pageFor('/purchase-orders', items).href, '/purchase-orders'); // not confused with /purchases
+  assert.equal(pageFor('/login', items), undefined);
+});

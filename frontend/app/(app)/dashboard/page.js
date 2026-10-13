@@ -28,13 +28,14 @@ function Stat({ icon: Icon, label, value, tone = 'default', note }) {
 export default function DashboardPage() {
   const { can } = useAuth();
   const [d, setD] = useState(null);
+  const [mode, setMode] = useState('');
   const [error, setError] = useState('');
   const [trend, setTrend] = useState(null);
   const [span, setSpan] = useState(14);
   const owner = can('reports:view');
 
   useEffect(() => {
-    api('/dashboard').then((r) => setD(r.data)).catch((e) => setError(e.message));
+    api('/dashboard').then((r) => { setMode(r.mode || ''); setD(r.data); }).catch((e) => setError(e.message));
   }, []);
   useEffect(() => {
     if (!owner) return undefined;
@@ -45,6 +46,7 @@ export default function DashboardPage() {
 
   if (error) return <ErrorNote error={error} />;
   if (!d) return <Spinner />;
+  if (mode === 'counter') return <CounterHome d={d} />;
 
   return (
     <>
@@ -111,5 +113,44 @@ function BackupReminder() {
     <p className="mb-4 rounded-md bg-amber-soft px-4 py-3 text-sm text-amber">
       {age === null ? 'No backup of your data has been downloaded yet.' : `Your last backup was ${age} days ago.`} <Link href="/settings" className="font-medium underline">Download a backup now</Link> so nothing is lost if the computer or the database has a problem.
     </p>
+  );
+}
+
+// What counter staff see instead of the owner's dashboard: their own day, their shift, what needs attention. No profit or costs.
+function CounterHome({ d }) {
+  const { can, user } = useAuth();
+  const links = [['/pos', 'Open POS', 'pos:use'], ['/shifts', 'Cash closing', 'shifts:use'], ['/medicines', 'Find a medicine', 'medicines:view'], ['/customers', 'Customers', 'customers:view'], ['/inventory', 'Stock', 'inventory:view'], ['/purchases', 'Purchases', 'purchases:view']].filter(([, , perm]) => can(perm));
+  const a = d.alerts;
+  return (
+    <>
+      <PageHeader title={`Hello, ${user?.name?.split(' ')[0] || ''}`} subtitle="Your day at a glance" />
+      {can('shifts:use') && !d.shift && <p className="mb-4 rounded-md bg-amber-soft px-4 py-3 text-sm text-amber">You have not opened your cash drawer yet. <Link href="/shifts" className="font-medium underline">Open your shift</Link></p>}
+      <div className="mb-4 flex flex-wrap gap-2">{links.map(([href, label]) => <Link key={href} href={href} className="rounded-md border border-line bg-white px-4 py-2 text-sm font-medium hover:bg-mint">{label}</Link>)}</div>
+      {can('pos:use') && (
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Stat icon={ShoppingBag} label="Your sales today" value={money(d.today.total)} note={`${d.today.bills} bills`} />
+          <Stat icon={Wallet} label="Cash taken" value={money(d.today.cash)} />
+          <Stat icon={Wallet} label="Card / bank" value={money(d.today.card + d.today.bank)} />
+          <Stat icon={Users} label="On udhaar" value={money(d.today.credit)} />
+        </div>
+      )}
+      {a && (
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Stat icon={AlertTriangle} label="Low stock" value={a.lowStock} tone={a.lowStock ? 'warn' : 'default'} note={`${a.outOfStock} out of stock`} />
+          <Stat icon={Clock} label="Expiring in 30 days" value={a.nearExpiry30} tone={a.nearExpiry30 ? 'warn' : 'default'} />
+          <Stat icon={PackageX} label="Expired" value={a.expired} tone={a.expired ? 'bad' : 'default'} note="Blocked from sale" />
+        </div>
+      )}
+      {can('pos:use') && (
+        <Card>
+          <div className="border-b border-line px-4 py-3 font-semibold">Your recent bills</div>
+          {d.recentSales.length === 0 ? <p className="p-6 text-center text-sm text-muted">No bills yet today.</p> : (
+            <Table head={['Invoice', 'Time', 'Customer', { label: 'Total', right: true }]}>
+              {d.recentSales.map((s) => <tr key={s._id}><td className="num px-3 py-2 font-medium">{s.invoiceNo}</td><td className="px-3 py-2 text-muted">{dateTime(s.createdAt)}</td><td className="px-3 py-2">{s.customerName || 'Walk-in'}</td><td className="num px-3 py-2 text-right">{money(s.total)}</td></tr>)}
+            </Table>
+          )}
+        </Card>
+      )}
+    </>
   );
 }

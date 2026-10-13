@@ -9,6 +9,7 @@ const userSchema = new mongoose.Schema(
     phone: { type: String, trim: true },
     password: { type: String, required: true, minlength: 8, select: false },
     role: { type: String, enum: ROLES, default: 'cashier', index: true },
+    mustChangePassword: { type: Boolean, default: false }, // set when the owner creates the account or resets the password: the person must choose their own before doing anything else
     isActive: { type: Boolean, default: true },
     tokenVersion: { type: Number, default: 0 }, // bump to invalidate all refresh tokens
     lastLoginAt: Date,
@@ -37,6 +38,7 @@ userSchema.methods.toSafeJSON = function toSafeJSON() {
     phone: this.phone,
     role: this.role,
     isActive: this.isActive,
+    mustChangePassword: !!this.mustChangePassword,
     permissions: this.permissions(),
     lastLoginAt: this.lastLoginAt,
     createdAt: this.createdAt,

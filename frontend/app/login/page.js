@@ -4,24 +4,25 @@ import { useRouter } from 'next/navigation';
 import { Pill } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Button, ErrorNote, Field, Input } from '@/components/ui';
+import { homeFor } from '@/lib/access';
 
 export default function LoginPage() {
-  const { user, loading, login } = useAuth();
+  const { user, loading, login, can } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { if (!loading && user) router.replace('/dashboard'); }, [user, loading, router]);
+  useEffect(() => { if (!loading && user) router.replace(homeFor(can)); }, [user, loading, router, can]);
 
   async function submit(e) {
     e.preventDefault();
     setError('');
     setBusy(true);
     try {
-      await login(email, password);
-      router.replace('/dashboard');
+      const u = await login(email, password);
+      router.replace(homeFor((p) => !!u.permissions?.includes(p)));
     } catch (err) {
       setError(err.message);
     } finally {

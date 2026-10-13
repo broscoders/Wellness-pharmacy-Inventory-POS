@@ -45,7 +45,7 @@ app.use(async (req, res, next) => {
 });
 
 app.get('/', (req, res) => res.json({ name: 'Wellness Pharmacy API', status: 'running' }));
-app.use('/api', routes);
+app.use('/api', require('./middleware/redact'), routes);
 app.use(notFound);
 app.use(errorHandler);
 

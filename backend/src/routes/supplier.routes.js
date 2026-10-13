@@ -21,7 +21,8 @@ router.get('/payables', requirePermission('suppliers:view'), ledgerCtl.payables)
 router.get('/', requirePermission('suppliers:view'), crud.list);
 router.get('/:id', requirePermission('suppliers:view'), crud.getOne);
 router.get('/:id/ledger', requirePermission('suppliers:view'), ledgerCtl.ledger);
-router.post('/:id/payments', requirePermission('payments:manage'), validate(ledgerCtl.paymentSchema), ledgerCtl.pay);
+// paying a supplier needs BOTH: counter staff may take money from customers, but never pay suppliers out of the shop
+router.post('/:id/payments', requirePermission('payments:manage'), requirePermission('suppliers:manage'), validate(ledgerCtl.paymentSchema), ledgerCtl.pay);
 router.post('/', requirePermission('suppliers:manage'), validate(base), crud.create);
 router.patch('/:id', requirePermission('suppliers:manage'), validate(base.partial()), crud.update);
 router.delete('/:id', requirePermission('suppliers:manage'), crud.archive);

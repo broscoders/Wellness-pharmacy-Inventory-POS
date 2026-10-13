@@ -27,7 +27,7 @@ const list = asyncHandler(async (req, res) => {
 });
 
 const create = asyncHandler(async (req, res) => {
-  const user = await User.create(req.body);
+  const user = await User.create({ ...req.body, mustChangePassword: true }); // the owner types a temporary password; the person replaces it at first sign-in
   await audit(req, 'user.create', 'User', user._id, { email: user.email, role: user.role });
   res.status(201).json({ success: true, data: user.toSafeJSON() });
 });
@@ -45,6 +45,7 @@ const update = asyncHandler(async (req, res) => {
   Object.assign(user, rest);
   if (password) {
     user.password = password;
+    user.mustChangePassword = !isSelf; // a reset by the owner is temporary, one the owner does for themselves is not
     user.tokenVersion += 1;
   }
   if (rest.isActive === false || rest.role) user.tokenVersion += 1;

@@ -10,6 +10,8 @@ router.get('/summary', requirePermission('inventory:view'), c.summary);
 router.get('/batches', requirePermission('inventory:view'), c.listBatches);
 router.get('/movements', requirePermission('inventory:view'), c.movements);
 router.post('/batches', requirePermission('inventory:manage'), validate(c.createBatchSchema), c.createBatch);
+router.get('/stock-take', requirePermission('inventory:adjust'), c.takeSheet);
+router.post('/stock-take', requirePermission('inventory:adjust'), validate(c.stockTakeSchema), c.stockTake);
 router.post('/batches/:id/adjust', requirePermission('inventory:adjust'), validate(c.adjustSchema), c.adjust);
 
 module.exports = router;

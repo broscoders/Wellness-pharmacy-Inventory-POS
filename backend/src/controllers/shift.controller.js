@@ -15,6 +15,10 @@ const closeSchema = z.object({ countedCash: z.number().min(0), notes: z.string()
 
 const isManager = (req) => req.user.permissions().includes('shifts:manage');
 
+// BLIND CLOSING: a cashier must not see how much the drawer should hold (or the sums that give it) before counting.
+// If they could, they would simply type that number. The owner sees everything; the cashier sees the difference only after closing.
+const liveFor = (req, live) => (isManager(req) ? live : { openingCash: live.openingCash, salesCount: live.salesCount, salesTotal: live.salesTotal });
+
 // Cashiers only ever see their own shifts; the owner (shifts:manage) sees everyone's.
 async function loadShift(req) {
   const shift = await Shift.findById(req.params.id);
@@ -26,7 +30,7 @@ async function loadShift(req) {
 const current = asyncHandler(async (req, res) => {
   const shift = await Shift.findOne({ user: req.user._id, status: 'open' });
   if (!shift) return res.json({ success: true, data: null });
-  res.json({ success: true, data: { ...shift.toObject(), live: await shiftSummary(shift) } });
+  res.json({ success: true, data: { ...shift.toObject(), live: liveFor(req, await shiftSummary(shift)) } });
 });
 
 const open = asyncHandler(async (req, res) => {
@@ -39,7 +43,7 @@ const open = asyncHandler(async (req, res) => {
     throw e;
   }
   await audit(req, 'shift.open', 'Shift', shift._id, { openingCash: shift.openingCash });
-  res.status(201).json({ success: true, data: { ...shift.toObject(), live: await shiftSummary(shift) } });
+  res.status(201).json({ success: true, data: { ...shift.toObject(), live: liveFor(req, await shiftSummary(shift)) } });
 });
 
 const addMovement = asyncHandler(async (req, res) => {
@@ -49,7 +53,7 @@ const addMovement = asyncHandler(async (req, res) => {
   shift.movements.push(req.body);
   await shift.save();
   await audit(req, `shift.cash_${req.body.type}`, 'Shift', shift._id, { amount: req.body.amount, reason: req.body.reason });
-  res.json({ success: true, data: { ...shift.toObject(), live: await shiftSummary(shift) } });
+  res.json({ success: true, data: { ...shift.toObject(), live: liveFor(req, await shiftSummary(shift)) } });
 });
 
 const close = asyncHandler(async (req, res) => {
@@ -89,7 +93,7 @@ const list = asyncHandler(async (req, res) => {
 const getOne = asyncHandler(async (req, res) => {
   const shift = await loadShift(req);
   const data = shift.toObject();
-  if (shift.status === 'open') data.live = await shiftSummary(shift);
+  if (shift.status === 'open') data.live = liveFor(req, await shiftSummary(shift));
   res.json({ success: true, data });
 });
 

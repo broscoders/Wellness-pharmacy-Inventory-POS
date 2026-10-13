@@ -16,8 +16,9 @@ const Category = require('../models/Category');
       email,
       password: process.env.SEED_ADMIN_PASSWORD || 'ChangeMe@12345',
       role: 'admin',
+      mustChangePassword: true, // the password in .env is only for the first sign-in
     });
-    console.log(`Admin created: ${email}`);
+    console.log(`Admin created: ${email}. At first sign-in the owner will be asked to choose a new password.`);
   } else {
     console.log(`Admin already exists: ${email}`);
   }

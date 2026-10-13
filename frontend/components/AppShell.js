@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { KeyRound, LayoutDashboard, ShoppingCart, Receipt, Pill, LogOut, Menu, X, Boxes, Truck, Users, Building2, FileText, Wallet, BarChart3, Tags, UserCog, ScrollText, Settings, Landmark, ClipboardList, TrendingUp, Users2, Barcode as BarcodeIcon, PackageX, BellRing, CalendarCheck } from 'lucide-react';
+import { KeyRound, LayoutDashboard, ShoppingCart, Receipt, Pill, LogOut, Menu, X, Boxes, Truck, Users, Building2, FileText, Wallet, BarChart3, Tags, UserCog, ScrollText, Settings, Landmark, ClipboardList, TrendingUp, Users2, ClipboardCheck, Barcode as BarcodeIcon, PackageX, BellRing, CalendarCheck } from 'lucide-react';
+import { homeFor, pageFor } from '@/lib/access';
 import { useAuth } from '@/context/AuthContext';
 import { Spinner } from '@/components/ui';
 import ChangePassword from '@/components/ChangePassword';
@@ -19,14 +20,15 @@ const GROUPS = [
   { title: 'Stock', items: [
     { href: '/medicines', label: 'Medicines', icon: Pill, perm: 'medicines:view' },
     { href: '/inventory', label: 'Inventory & Expiry', icon: Boxes, perm: 'inventory:view' },
+    { href: '/stock-take', label: 'Stock take', icon: ClipboardCheck, perm: 'inventory:adjust' },
     { href: '/expiry-returns', label: 'Expiry returns', icon: PackageX, perm: 'inventory:view' },
-    { href: '/labels', label: 'Barcode labels', icon: BarcodeIcon, perm: 'medicines:view' },
+    { href: '/labels', label: 'Barcode labels', icon: BarcodeIcon, perm: 'medicines:manage' },
     { href: '/purchase-orders', label: 'Purchase orders', icon: ClipboardList, perm: 'purchases:view' },
     { href: '/purchases', label: 'Purchases', icon: Truck, perm: 'purchases:view' },
   ] },
   { title: 'People', items: [
     { href: '/customers', label: 'Customers (udhaar)', icon: Users, perm: 'customers:view' },
-    { href: '/udhaar', label: 'Udhaar reminders', icon: BellRing, perm: 'customers:view' },
+    { href: '/udhaar', label: 'Udhaar reminders', icon: BellRing, perm: 'customers:credit' },
     { href: '/suppliers', label: 'Suppliers', icon: Building2, perm: 'suppliers:view' },
     { href: '/prescriptions', label: 'Prescriptions', icon: FileText, perm: 'prescriptions:view' },
   ] },
@@ -61,6 +63,8 @@ function Shell({ children }) {
   useEffect(() => setOpen(false), [pathname]);
 
   if (loading || !user) return <Spinner label="Loading..." />;
+  const page = pageFor(pathname, GROUPS.flatMap((g) => g.items));
+  const blocked = !!page && !can(page.perm);
   const groups = GROUPS.map((g) => ({ ...g, items: g.items.filter((n) => can(n.perm)) })).filter((g) => g.items.length);
 
   const nav = (
@@ -108,8 +112,19 @@ function Shell({ children }) {
         </div>
       )}
 
-      <main className="min-w-0 p-4 lg:p-6">{children}</main>
-      {pwd && <ChangePassword onClose={() => setPwd(false)} />}
+      <main className="min-w-0 p-4 lg:p-6">{user.mustChangePassword ? null : blocked ? <NoAccess home={homeFor(can)} /> : children}</main>
+      {(pwd || user.mustChangePassword) && <ChangePassword forced={!!user.mustChangePassword} onClose={() => setPwd(false)} />}
+    </div>
+  );
+}
+
+// Shown if someone types an address that belongs to a screen their role does not have.
+function NoAccess({ home }) {
+  return (
+    <div className="mx-auto mt-16 max-w-md rounded-lg border border-line bg-white p-8 text-center">
+      <p className="text-lg font-semibold">This screen is not available to your role</p>
+      <p className="mt-2 text-sm text-muted">If you need it, ask the owner to give you access.</p>
+      <Link href={home} className="mt-4 inline-block rounded-md bg-pine px-4 py-2 text-sm font-medium text-white">Go to my home screen</Link>
     </div>
   );
 }

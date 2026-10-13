@@ -34,9 +34,12 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  // re-read the signed-in user (e.g. after the forced password change clears the flag)
+  const refreshUser = useCallback(async () => { try { const d = await api('/auth/me'); setUser(d.user); } catch { /* the next request will sign out if the session is gone */ } }, []);
+
   const can = useCallback((perm) => !!user?.permissions?.includes(perm), [user]);
 
-  const value = useMemo(() => ({ user, loading, login, logout, can }), [user, loading, login, logout, can]);
+  const value = useMemo(() => ({ user, loading, login, logout, can, refreshUser }), [user, loading, login, logout, can, refreshUser]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

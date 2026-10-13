@@ -32,6 +32,7 @@ Remaining before go-live: deploy to Vercel, create the owner account on the prod
 
 - **Finance:** profit & margin %, expenses share, 6-month trend, price check, staff salaries (payroll) linked to expenses; medicines carry shelf location, storage and MRP.
 - **Operations:** barcode label printing with shop-made EAN-13 codes, udhaar WhatsApp reminders, expiry return lists with sell-through estimate, daily summary for the owner, in-app backup download (restorable with `npm run restore`).
+- **Roles:** four roles with server-enforced access (costs/profit hidden from counter staff, own-bills-only for cashiers, discount and udhaar limits, blind cash closing, forced password change). Table in `docs/ROLES.md`. Stock take (blind physical count) for stock control.
 - **Control:** cash closing (shifts) with expected vs counted cash, purchase orders linked to purchases, substitute (same generic) suggestions at the counter.
 
 ## Tests

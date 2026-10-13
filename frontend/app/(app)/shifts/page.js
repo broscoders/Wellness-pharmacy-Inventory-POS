@@ -91,6 +91,16 @@ function Row({ label, value, sign, muted }) {
 // The drawer sum, line by line, so the cashier and owner can see exactly where the expected figure comes from.
 function Live({ s, movements = [] }) {
   if (!s) return null;
+  if (s.expectedCash === undefined) {
+    // blind closing: no sums, so nobody can simply type the expected figure
+    return (
+      <div className="p-4 text-sm">
+        <div className="num grid max-w-sm grid-cols-2 gap-2"><span className="text-muted">Opening cash</span><b className="text-right">{money(s.openingCash)}</b><span className="text-muted">Bills this shift</span><b className="text-right">{s.salesCount}</b><span className="text-muted">Sales this shift</span><b className="text-right">{money(s.salesTotal)}</b></div>
+        <p className="mt-3 rounded-md bg-paper p-3 text-muted">When you finish, count the cash in the drawer and press Close shift. The system compares it with what it expects and tells you the result.</p>
+        {movements.length > 0 && <div className="mt-3"><p className="mb-1 font-medium">Cash in / out</p>{movements.map((m) => <p key={m._id} className="flex justify-between text-xs text-muted"><span>{m.reason}</span><span className="num">{m.type === 'in' ? '+' : '-'}{money(m.amount)}</span></p>)}</div>}
+      </div>
+    );
+  }
   return (
     <div className="grid gap-6 p-4 lg:grid-cols-[1fr_1fr_280px]">
       <div className="text-sm">
@@ -151,26 +161,30 @@ function CloseShift({ shift, onClose, onSaved }) {
   const [notes, setNotes] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
-  const expected = shift.live.expectedCash;
+  const expected = shift.live.expectedCash; // undefined for cashiers (blind closing)
+  const blind = expected === undefined;
+  const [needNote, setNeedNote] = useState(false); // blind: the note box appears only if the server says the cash does not match
   const has = counted !== '';
-  const diff = has ? round2(Number(counted) - expected) : 0;
+  const diff = has && !blind ? round2(Number(counted) - expected) : 0;
+  const showNote = blind ? needNote : diff !== 0;
   async function close() {
     setBusy(true); setErr('');
-    try { await api(`/shifts/${shift._id}/close`, { method: 'POST', body: { countedCash: Number(counted), notes: diff !== 0 && notes ? notes : undefined } }); onSaved(); } catch (e) { setErr(e.message); } finally { setBusy(false); }
+    try { await api(`/shifts/${shift._id}/close`, { method: 'POST', body: { countedCash: Number(counted), notes: showNote && notes ? notes : undefined } }); onSaved(); } catch (e) { if (blind && /does not match/i.test(e.message)) { setNeedNote(true); setErr(''); } else setErr(e.message); } finally { setBusy(false); }
   }
   return (
-    <Modal open onClose={onClose} title="Close shift" width="max-w-md" footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={close} loading={busy} disabled={!has || (diff !== 0 && notes.trim().length < 3)}>Close shift</Button></>}>
+    <Modal open onClose={onClose} title="Close shift" width="max-w-md" footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={close} loading={busy} disabled={!has || (showNote && notes.trim().length < 3)}>Close shift</Button></>}>
       <ErrorNote error={err} />
-      <p className="text-sm text-muted">Count all the cash in the drawer and type the total. Do not look at the expected figure first.</p>
+      <p className="text-sm text-muted">{blind ? 'Count all the cash in the drawer and type the total.' : 'Count all the cash in the drawer and type the total. Do not look at the expected figure first.'}</p>
       <div className="mt-3 grid gap-3">
         <Field label="Cash counted in the drawer"><Input className="num h-12 text-right text-lg" type="number" min="0" value={counted} onChange={(e) => setCounted(e.target.value)} autoFocus /></Field>
-        {has && (
+        {has && !blind && (
           <div className="rounded-md bg-paper p-3 text-sm num">
             <div className="flex justify-between"><span className="text-muted">System expects</span><span>{money(expected)}</span></div>
             <div className={`mt-1 flex justify-between text-base font-semibold ${diff < 0 ? 'text-danger' : diff > 0 ? 'text-amber' : 'text-pine-dark'}`}><span>{diff === 0 ? 'Cash matches' : diff < 0 ? 'Cash is short by' : 'Cash is extra by'}</span><span>{diff === 0 ? '' : money(Math.abs(diff))}</span></div>
           </div>
         )}
-        {has && diff !== 0 && <Field label="Why is there a difference? *"><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Short explanation for the owner" /></Field>}
+        {blind && needNote && <p className="rounded-md bg-amber-soft p-2 text-sm text-amber">The counted cash does not match what the system expects. Count again, or write what happened below.</p>}
+        {has && showNote && <Field label="Why is there a difference? *"><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Short explanation for the owner" /></Field>}
       </div>
     </Modal>
   );

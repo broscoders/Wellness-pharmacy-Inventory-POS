@@ -18,6 +18,8 @@ const protect = asyncHandler(async (req, res, next) => {
 
   const user = await User.findById(payload.sub);
   if (!user || !user.isActive) throw ApiError.unauthorized('Account not found or disabled');
+  // A temporary (owner-set) password may only be used to set a real one: everything else is refused until then.
+  if (user.mustChangePassword && !req.originalUrl.startsWith('/api/auth/')) throw ApiError.forbidden('You must set your own password before using the system');
   req.user = user;
   next();
 });

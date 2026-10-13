@@ -66,6 +66,9 @@ Expiry returns shows expired stock and near-expiry stock per supplier. For each 
 ## Daily summary and backup
 **Daily summary** gathers the day: sales and how customers paid, gross and net profit, expenses, udhaar given/received, cash drawer differences, stock alerts, top sellers and staff sales. **Send on WhatsApp** shares it as text. **Settings > Backup > Download backup** saves the whole database as one file (do it weekly; the dashboard warns the owner after 7 days). To restore: `npm run restore -- <file.json> --yes` (with CONFIRM_DB_NAME set). Keep the file private: it contains staff password hashes.
 
+## Stock take (physical count)
+Stock take > choose a rack > count the packs on the shelf and type them (boxes, strips, loose units). The counting sheet does **not** show the system quantity, so people count instead of copying. **Review differences** shows system vs counted, short and extra, with the value at cost for the owner. **Apply** records one stock adjustment per difference with the note and the person's name. If a sale happens while you are reviewing, the system asks you to review again, so a count never overwrites a sale. Rack, row and side on each medicine (Medicines page) make this fast.
+
 ## Substitutes
 If a medicine is out of stock or expired, the POS lists other brands with the same generic name that are in stock, same strength first. There is also an "Alternatives" link on every bill line. It only suggests; the pharmacist decides whether a substitute is suitable.
 
@@ -79,6 +82,7 @@ If a medicine is out of stock or expired, the POS lists other brands with the sa
 - Returns, cancellations, stock adjustments, discounts and price changes are written to the audit log; staff cannot delete financial records.
 
 ## Roles
+See `docs/ROLES.md` for the full table. In short:
 Owner (everything), Pharmacist, Cashier, Inventory. Profit, purchase cost and payables are visible to the owner only. The POS medicine list never contains purchase prices.
 
 ## Likely client questions
