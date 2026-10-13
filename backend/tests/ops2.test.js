@@ -104,8 +104,8 @@ test('barcodes, expiry plan, udhaar reminders, daily summary, backup', async (t)
     assert.ok(row.daysSince >= 40);
     assert.strictEqual(row.phone, '03001234567');
     assert.strictEqual(row.lastReminderAt, null);
-    assert.strictEqual((await call('GET', '/ops/udhaar-reminders', null, cashier)).status, 403); // reminders are the owner's call
-    assert.strictEqual((await call('POST', `/ops/udhaar-reminders/${cust._id}/sent`, null, owner)).status, 200);
+    assert.strictEqual((await call('GET', '/ops/udhaar-reminders', null, cashier)).status, 200); // the cashier who collects udhaar can remind too
+    assert.strictEqual((await call('POST', `/ops/udhaar-reminders/${cust._id}/sent`, null, cashier)).status, 200);
     row.lastReminderAt = (await call('GET', '/ops/udhaar-reminders?minDays=15', null, owner)).data.find((x) => x.name === 'Late Payer').lastReminderAt;
     assert.ok(row.lastReminderAt);
     // paying part of it resets the clock

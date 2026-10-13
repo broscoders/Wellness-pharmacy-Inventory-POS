@@ -18,7 +18,7 @@ Four roles. The owner can change a person's role on the Users page. Every rule b
 | Customers: view, add, fix name/phone | Yes | View | Yes | No |
 | Customers: **udhaar limit**, archive | Yes | No | No (new customers start with the shop default limit) | No |
 | Receive udhaar payments from customers | Yes | No | Yes | No |
-| Udhaar reminders (WhatsApp) | Yes | No | No | No |
+| Udhaar reminders (WhatsApp) | Yes | Yes | Yes | No |
 | Prescriptions | Yes | Yes | No | No |
 | Cash closing | Sees every shift and all workings | Own shift, **blind** | Own shift, **blind** | No |
 | Home screen after sign-in | Dashboard | POS | POS | Counter home |

@@ -28,7 +28,7 @@ const GROUPS = [
   ] },
   { title: 'People', items: [
     { href: '/customers', label: 'Customers (udhaar)', icon: Users, perm: 'customers:view' },
-    { href: '/udhaar', label: 'Udhaar reminders', icon: BellRing, perm: 'customers:credit' },
+    { href: '/udhaar', label: 'Udhaar reminders', icon: BellRing, perm: 'customers:view' },
     { href: '/suppliers', label: 'Suppliers', icon: Building2, perm: 'suppliers:view' },
     { href: '/prescriptions', label: 'Prescriptions', icon: FileText, perm: 'prescriptions:view' },
   ] },

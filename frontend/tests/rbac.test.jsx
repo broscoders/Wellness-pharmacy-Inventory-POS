@@ -46,7 +46,8 @@ describe('menu and route guard', () => {
     expect(screen.queryByText('SECRET FINANCE PAGE')).toBeNull();
     const nav = screen.getAllByRole('navigation')[0];
     expect(within(nav).getByText('POS / Billing')).toBeInTheDocument();
-    for (const hidden of ['Finance & profit', 'Staff salaries', 'Purchases', 'Purchase orders', 'Reports', 'Daily summary', 'Expiry returns', 'Barcode labels', 'Udhaar reminders', 'Cash closing'].filter((x) => x !== 'Cash closing')) expect(within(nav).queryByText(hidden)).toBeNull();
+    expect(within(nav).getByText('Udhaar reminders')).toBeInTheDocument(); // cashiers collect udhaar, so they can remind too
+    for (const hidden of ['Finance & profit', 'Staff salaries', 'Purchases', 'Purchase orders', 'Reports', 'Daily summary', 'Expiry returns', 'Barcode labels', 'Cash closing'].filter((x) => x !== 'Cash closing')) expect(within(nav).queryByText(hidden)).toBeNull();
     expect(screen.getByRole('link', { name: /Go to my home screen/ }).getAttribute('href')).toBe('/pos');
   });
   it('the owner gets the same address normally', async () => {
