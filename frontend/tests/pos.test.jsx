@@ -365,6 +365,8 @@ describe('choosing box, strip or tablet right in the search result', () => {
       expect(within(row).getByRole('button', { name: /Box.*Rs 245/ })).toBeInTheDocument();
       expect(within(row).getByRole('button', { name: /Strip.*Rs 25/ })).toBeInTheDocument();
       expect(within(row).getByRole('button', { name: /Tablet.*Rs 3/ })).toBeInTheDocument(); // "Tablet" because it is a tablet
+      expect(within(row).getByRole('button', { name: /Strip \(patta\).*Rs 25/ })).toBeInTheDocument();  // the words counter staff use
+      expect(within(row).getByRole('button', { name: /Tablet \(goli\).*Rs 3/ })).toBeInTheDocument();
     } finally { cleanup(); }
   });
 
@@ -412,10 +414,92 @@ describe('choosing box, strip or tablet right in the search result', () => {
       await open();
       await user.type(searchBox(), 'single bottle');
       const row = resultRows()[0];
-      expect(within(row).getAllByRole('button').map((b) => b.textContent)).toEqual([expect.stringContaining('Single Bottle Syrup'), expect.stringContaining('Rs 120')]);
+      const unitButtons = within(within(row).getByRole('group', { name: /Choose unit/ })).getAllByRole('button');
+      expect(unitButtons).toHaveLength(1); // only "Unit"
       expect(within(row).getByRole('button', { name: /Unit.*Rs 120/ })).toBeInTheDocument();
       await user.keyboard('{Enter}');
       expect(within(screen.getByLabelText('Quantity').closest('li')).getByLabelText('Unit')).toHaveValue('unit');
     } finally { cleanup(); }
+  });
+});
+
+describe('how many: set the quantity on the result before choosing the unit', () => {
+  const add = () => CATALOG.push(med('q1', 'Qty Test Tabs', { genericName: 'Qtymol', dosageForm: 'Tablet', salePrice: { box: 245, strip: 25, unit: 3 } }));
+  const row = () => within(screen.getByRole('listbox')).getAllByRole('option')[0];
+
+  it('2 tablets (goli): set 2, press Tablet -> 2 x Rs 3', async () => {
+    add();
+    try {
+      const user = userEvent.setup();
+      await open();
+      await user.type(searchBox(), 'qty test');
+      const qty = within(row()).getByLabelText('Quantity to add of Qty Test Tabs');
+      expect(qty).toHaveValue(1);
+      await user.clear(qty); await user.type(qty, '2');
+      await user.click(within(row()).getByRole('button', { name: /Tablet \(goli\)/ }));
+      const line = screen.getByLabelText('Quantity').closest('li');
+      expect(screen.getByLabelText('Quantity')).toHaveValue(2);
+      expect(within(line).getByLabelText('Unit')).toHaveValue('unit');
+      expect(line).toHaveTextContent('Rs 6');            // 2 x Rs 3
+    } finally { CATALOG.length = 4; }
+  });
+
+  it('3 strips (patta) with the + button, and the next medicine starts again at 1', async () => {
+    add();
+    try {
+      const user = userEvent.setup();
+      await open();
+      await user.type(searchBox(), 'qty test');
+      await user.click(within(row()).getByRole('button', { name: 'More Qty Test Tabs' }));
+      await user.click(within(row()).getByRole('button', { name: 'More Qty Test Tabs' }));
+      expect(within(row()).getByLabelText('Quantity to add of Qty Test Tabs')).toHaveValue(3);
+      await user.click(within(row()).getByRole('button', { name: /Strip \(patta\)/ }));
+      expect(screen.getByLabelText('Quantity')).toHaveValue(3);
+      expect(screen.getByLabelText('Quantity').closest('li')).toHaveTextContent('Rs 75'); // 3 x Rs 25
+      await user.type(searchBox(), 'qty test');
+      expect(within(row()).getByLabelText('Quantity to add of Qty Test Tabs')).toHaveValue(1);
+    } finally { CATALOG.length = 4; }
+  });
+
+  it('a typed "5*" prefills the quantity on the results; Enter uses it', async () => {
+    add();
+    try {
+      const user = userEvent.setup();
+      await open();
+      await user.type(searchBox(), '5*qty test');
+      expect(within(row()).getByLabelText('Quantity to add of Qty Test Tabs')).toHaveValue(5);
+      await user.keyboard('{Enter}');
+      expect(screen.getByLabelText('Quantity')).toHaveValue(5);
+    } finally { CATALOG.length = 4; }
+  });
+
+  it('a quantity set on the row also applies when Enter is pressed in the search box', async () => {
+    add();
+    try {
+      const user = userEvent.setup();
+      await open();
+      await user.type(searchBox(), 'qty test');
+      await user.click(within(row()).getByRole('button', { name: 'More Qty Test Tabs' }));
+      searchBox().focus();
+      await user.keyboard('{Enter}');
+      expect(screen.getByLabelText('Quantity')).toHaveValue(2);
+    } finally { CATALOG.length = 4; }
+  });
+});
+
+
+describe('quantity boxes can be cleared and retyped', () => {
+  it('on the bill line: clear, type 2 gives 2 (not 12)', async () => {
+    const user = userEvent.setup();
+    await open();
+    await user.type(searchBox(), 'pana{Enter}');
+    const qty = screen.getByLabelText('Quantity');
+    await user.clear(qty);
+    await user.type(qty, '2');
+    expect(qty).toHaveValue(2);
+    expect(screen.getAllByText('Rs 50').length).toBeGreaterThan(0);
+    await user.clear(qty);
+    await user.tab();                    // leaving it empty puts the real quantity back
+    expect(qty).toHaveValue(2);
   });
 });

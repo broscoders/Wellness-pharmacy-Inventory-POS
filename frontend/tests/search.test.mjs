@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { unitChoices, defaultUnitFor, unitLabel, locationText, substitutes, genericKey, strengthOf, prepare, search, stockOf, takeLocal, parseQuery, findByBarcode, parseDiscount, normalize } from '../lib/search.js';
+import { unitChoices, defaultUnitFor, unitLabel, unitName, locationText, substitutes, genericKey, strengthOf, prepare, search, stockOf, takeLocal, parseQuery, findByBarcode, parseDiscount, normalize } from '../lib/search.js';
 
 const day = 86400000;
 const now = Date.now();
@@ -199,4 +199,14 @@ test('units that make sense for each kind of pack', () => {
   assert.equal(unitLabel(m(10, 10, { dosageForm: 'Capsule' }), 'unit'), 'Capsule');
   assert.equal(unitLabel(m(1, 1, { dosageForm: 'Syrup' }), 'unit'), 'Unit');
   assert.equal(unitLabel(m(10, 10), 'box'), 'Box');
+});
+
+test('unit names use the words counter staff use', () => {
+  const tabs = { stripsPerBox: 10, unitsPerStrip: 10 };
+  assert.equal(unitName(tabs, 'strip'), 'Strip (patta)');
+  assert.equal(unitName(tabs, 'unit'), 'Tablet (goli)');                 // tablets even when no dosage form is filled in
+  assert.equal(unitName({ ...tabs, dosageForm: 'Capsule' }, 'unit'), 'Capsule (goli)');
+  assert.equal(unitName({ ...tabs, dosageForm: 'Syrup' }, 'unit'), 'Unit');
+  assert.equal(unitName({ stripsPerBox: 1, unitsPerStrip: 1 }, 'unit'), 'Unit'); // a bottle or tube is not a goli
+  assert.equal(unitName(tabs, 'box'), 'Box');
 });

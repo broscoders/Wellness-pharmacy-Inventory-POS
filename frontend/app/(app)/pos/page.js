@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCatalog } from '@/context/CatalogContext';
 import { dateOnly, dateTime, money, stockText } from '@/lib/format';
 import { baseQtyOfType, round2, sellPrice } from '@/lib/units';
-import { defaultUnitFor, locationText, parseDiscount, parseQuery, stockOf, unitChoices, unitLabel } from '@/lib/search';
+import { defaultUnitFor, locationText, parseDiscount, parseQuery, stockOf, unitChoices, unitLabel, unitName } from '@/lib/search';
 import { beep } from '@/lib/beep';
 import { receiptMessage, waLink } from '@/lib/whatsapp';
 import { useSettings } from '@/context/SettingsContext';
@@ -37,6 +37,7 @@ export default function PosPage() {
   const [active, setActive] = useState(0);
   const [cart, setCart] = useState([]); // { key, id, unitType, qty, name }
   const [lastKey, setLastKey] = useState(null);
+  const [rowQty, setRowQty] = useState({}); // how many the cashier set on a result row before pressing Box / Strip / Tablet
   const [altFor, setAltFor] = useState(null); // medicine id whose alternatives are shown instead of the search results
   const [saleType, setSaleType] = useState('retail');
   const [customer, setCustomer] = useState(null);
@@ -72,7 +73,8 @@ export default function PosPage() {
   const altMed = altFor ? catalog?.get(altFor) : null;
   const alts = useMemo(() => (altMed ? catalog.substitutes(altMed) : []), [catalog, altMed]);
   const shown = altMed ? alts : results; // what the list on the left currently contains
-  useEffect(() => { setActive(0); setAltFor(null); }, [parsed.text]);
+  useEffect(() => { setActive(0); setAltFor(null); setRowQty({}); }, [parsed.text]);
+  const qtyOf = (m) => rowQty[m._id] ?? parsed.qty; // a typed 3* prefix pre-fills every row
   useEffect(() => { setActive(0); }, [altFor]);
   useEffect(() => { listRef.current?.querySelector(`[data-i="${active}"]`)?.scrollIntoView({ block: 'nearest' }); }, [active]);
 
@@ -113,13 +115,13 @@ export default function PosPage() {
     if (!q.text) {
       // nothing typed: Enter adds the row that is highlighted in the list (so Up/Down + Enter works with no typing at all)
       const row = shown[active];
-      if (row) addToCart(row, 1);
+      if (row) addToCart(row, qtyOf(row));
       return true;
     }
     const byCode = catalog.byBarcode(q.text);
     if (byCode) { addToCart(byCode, q.qty, q.unit); return true; }
     const pick = q.text === parsed.text ? shown[active] : catalog.search(q.text, { limit: 1 })[0];
-    if (pick) addToCart(pick, q.qty, q.unit);
+    if (pick) addToCart(pick, q.text === parsed.text ? qtyOf(pick) : q.qty, q.unit);
     else { fail(`No medicine found for "${q.text}"`); searchRef.current?.select(); }
     return true;
   }
@@ -302,7 +304,7 @@ export default function PosPage() {
                 onChange={(e) => setTerm(e.target.value)} onKeyDown={onSearchKey} aria-label="Search medicine" />
               {(parsed.qty > 1 || parsed.unit) && parsed.text && <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded bg-mint px-2 py-0.5 text-xs font-semibold text-pine-dark">Qty {parsed.qty}{parsed.unit ? ` ${parsed.unit === 'unit' ? 'loose' : parsed.unit}` : ''}</span>}
             </div>
-            <p className="hidden truncate text-[11px] text-muted xl:block">Type a name or scan &middot; click <b>Box</b> / <b>Strip</b> / <b>Tablet</b> (or <Kbd>Enter</Kbd> for strip) &middot; <Kbd>Up</Kbd><Kbd>Down</Kbd> choose &middot; <b>10t*pana</b> = 10 tablets &middot; <Kbd>F9</Kbd> or <Kbd>Ctrl+Enter</Kbd> complete</p>
+            <p className="hidden truncate text-[11px] text-muted xl:block">Type a name or scan &middot; set how many, click <b>Box</b> / <b>Strip</b> / <b>Tablet</b> (or <Kbd>Enter</Kbd> for strip) &middot; <Kbd>Up</Kbd><Kbd>Down</Kbd> choose &middot; <b>10t*pana</b> = 10 tablets &middot; <Kbd>F9</Kbd> or <Kbd>Ctrl+Enter</Kbd> complete</p>
           </div>
 
           <div ref={listRef} className="max-h-[46vh] min-h-0 flex-1 overflow-y-auto xl:max-h-none" role="listbox" aria-label="Medicines">
@@ -320,14 +322,14 @@ export default function PosPage() {
               <div className="flex flex-col items-center px-6 py-14 text-center text-muted">
                 <Search className="mb-3 h-10 w-10 text-line" />
                 <p className="text-base font-medium text-ink">Type a medicine name or scan its barcode</p>
-                <p className="mt-1 max-w-sm text-sm">Only the medicines you search for are shown. Choose Box, Strip or Tablet on the right of the medicine and the price follows.</p>
+                <p className="mt-1 max-w-sm text-sm">Only the medicines you search for are shown. Set how many (1, 2, 3...), then press <b>Box</b>, <b>Strip (patta)</b> or <b>Tablet (goli)</b> on the right of the medicine: the price follows that unit.</p>
               </div>
             )}
             {catalog?.ready && !altMed && parsed.text && !results.length && (
               <div className="p-10 text-center text-muted">No medicine matches <b className="text-ink">&ldquo;{parsed.text}&rdquo;</b>. Check the spelling, try the generic name, or scan the barcode.</div>
             )}
             <ul>
-              {shown.map((m, i) => <MedicineRow key={m._id} med={m} i={i} on={i === active} saleType={saleType} sameStrength={altMed ? m.sameStrength : undefined} onPick={(unit) => addToCart(m, parsed.qty, unit)} onHover={hoverRow(i)} />)}
+              {shown.map((m, i) => <MedicineRow key={m._id} med={m} i={i} on={i === active} saleType={saleType} sameStrength={altMed ? m.sameStrength : undefined} qty={qtyOf(m)} onQty={(v) => setRowQty((r) => ({ ...r, [m._id]: v }))} onPick={(unit) => addToCart(m, qtyOf(m), unit)} onHover={hoverRow(i)} />)}
             </ul>
           </div>
         </Card>
@@ -448,6 +450,17 @@ export default function PosPage() {
   );
 }
 
+// Shows what is being typed; only a whole number of 1 or more is passed on, and the box shows the real value again when left.
+function QtyBox({ value, onChange, ...rest }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => { setText((t) => (parseInt(t, 10) === value ? t : String(value))); }, [value]);
+  return (
+    <Input {...rest} type="number" min="1" value={text}
+      onChange={(e) => { const t = e.target.value; setText(t); const n = parseInt(t, 10); if (n >= 1) onChange(n); }}
+      onBlur={() => setText(String(value))} />
+  );
+}
+
 function Kbd({ children }) {
   return <kbd className="rounded border border-line bg-paper px-1 font-sans text-[11px] text-ink">{children}</kbd>;
 }
@@ -455,7 +468,7 @@ function Kbd({ children }) {
 // One medicine in the find list: what it is, what it costs, what is left, when it expires.
 // One medicine in the search results. The cashier picks WHAT to give by pressing Box, Strip or Tablet: each button shows
 // that unit's price. Clicking the name (or pressing Enter) gives the usual unit (strip, or a single unit for syrups etc).
-function MedicineRow({ med, i, on, saleType, sameStrength, onPick, onHover }) {
+function MedicineRow({ med, i, on, saleType, sameStrength, qty, onQty, onPick, onHover }) {
   const s = stockOf(med);
   const usual = defaultUnitFor(med);
   let stockBadge;
@@ -472,13 +485,19 @@ function MedicineRow({ med, i, on, saleType, sameStrength, onPick, onHover }) {
           {locationText(med) && <span className="block truncate text-xs font-medium text-pine-dark">{locationText(med)}</span>}
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted">{stockBadge}{!s.isOut && <span>{stockText(s.display)}{s.nearestExpiry ? ` | exp ${dateOnly(s.nearestExpiry).slice(3)}` : ''}</span>}</span>
         </button>
+        <div className="flex shrink-0 items-center gap-0.5 self-center" title="How many to add">
+          <button type="button" className="h-7 w-6 rounded border border-line bg-white text-sm hover:bg-mint" onClick={() => onQty(Math.max(1, qty - 1))} aria-label={`Fewer ${med.name}`}>-</button>
+          <QtyBox className="num h-7 w-10 px-1 text-center text-sm" value={qty} aria-label={`Quantity to add of ${med.name}`}
+            onChange={onQty} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onPick(); } }} />
+          <button type="button" className="h-7 w-6 rounded border border-line bg-white text-sm hover:bg-mint" onClick={() => onQty(qty + 1)} aria-label={`More ${med.name}`}>+</button>
+        </div>
         <div className="flex shrink-0 items-center gap-1.5" role="group" aria-label={`Choose unit for ${med.name}`}>
           {unitChoices(med).map((u) => {
             const price = sellPrice(med, saleType, u);
             return (
-              <button key={u} type="button" disabled={!price} onClick={() => onPick(u)} title={price ? `Add one ${unitLabel(med, u).toLowerCase()}` : 'No price set'}
-                className={`num flex min-w-[64px] flex-col items-center rounded-md border px-2 py-1 leading-tight transition-colors disabled:opacity-40 ${u === usual ? 'border-pine bg-pine text-white hover:bg-pine-dark' : 'border-line bg-white hover:border-pine hover:bg-mint'}`}>
-                <span className="text-[10px] font-medium uppercase tracking-wide opacity-80">{unitLabel(med, u)}</span>
+              <button key={u} type="button" disabled={!price} onClick={() => onPick(u)} title={price ? `Add ${qty} x ${unitName(med, u).toLowerCase()}` : 'No price set'}
+                className={`num flex min-w-[72px] flex-col items-center rounded-md border px-2 py-1 leading-tight transition-colors disabled:opacity-40 ${u === usual ? 'border-pine bg-pine text-white hover:bg-pine-dark' : 'border-line bg-white hover:border-pine hover:bg-mint'}`}>
+                <span className="whitespace-nowrap text-[10px] font-medium uppercase tracking-wide opacity-80">{unitName(med, u)}</span>
                 <span className="text-sm font-semibold">{price ? money(price) : '-'}</span>
               </button>
             );
@@ -505,8 +524,8 @@ function BillLine({ l, hot, onChange, onRemove, onAlt, onDone }) {
       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
         <Select value={l.unitType} onChange={(e) => onChange({ unitType: e.target.value })} className="h-7 w-[78px] px-1.5 text-xs" aria-label="Unit">{[...new Set([...unitChoices(l.med), l.unitType])].map((u) => <option key={u} value={u}>{unitLabel(l.med, u)}</option>)}</Select>
         <Button variant="secondary" size="sm" className="h-7 w-7 px-0" onClick={() => onChange({ qty: Math.max(1, l.qty - 1) })} aria-label="Less"><Minus className="h-3.5 w-3.5" /></Button>
-        <Input id={`qty-${l.key}`} className="num h-7 w-12 px-1 text-center text-sm" type="number" min="1" value={l.qty}
-          onChange={(e) => onChange({ qty: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+        <QtyBox id={`qty-${l.key}`} className="num h-7 w-12 px-1 text-center text-sm" value={l.qty}
+          onChange={(n) => onChange({ qty: n })}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onDone(); } }} aria-label="Quantity" />
         <Button variant="secondary" size="sm" className="h-7 w-7 px-0" onClick={() => onChange({ qty: l.qty + 1 })} aria-label="More"><Plus className="h-3.5 w-3.5" /></Button>
         <span className="num text-xs text-muted">x {money(l.unitPrice)} per {unitLabel(l.med, l.unitType).toLowerCase()}</span>

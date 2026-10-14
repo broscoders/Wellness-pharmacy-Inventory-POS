@@ -99,13 +99,22 @@ export function unitChoices(m) {
 }
 // the unit used when the cashier just presses Enter
 export const defaultUnitFor = (m) => (unitChoices(m).includes('strip') ? 'strip' : 'unit');
-// "unit" is called by the name a pharmacist uses
+// "unit" is called by the name a pharmacist uses: a tablet/capsule when the pack is made of strips, otherwise just "Unit"
 export function unitLabel(m, unit) {
   if (unit === 'box') return 'Box';
   if (unit === 'strip') return 'Strip';
   const f = String(m.dosageForm || '').toLowerCase();
-  return f === 'tablet' ? 'Tablet' : f === 'capsule' ? 'Capsule' : 'Unit';
+  if (f === 'tablet') return 'Tablet';
+  if (f === 'capsule') return 'Capsule';
+  return !f && (m.stripsPerBox || 1) > 1 && (m.unitsPerStrip || 1) > 1 ? 'Tablet' : 'Unit';
 }
+// what the counter staff call it in Urdu, shown next to the English name on the buttons
+export function unitHint(m, unit) {
+  if (unit === 'strip') return 'patta';
+  if (unit === 'unit' && ['Tablet', 'Capsule'].includes(unitLabel(m, 'unit'))) return 'goli';
+  return '';
+}
+export const unitName = (m, unit) => `${unitLabel(m, unit)}${unitHint(m, unit) ? ` (${unitHint(m, unit)})` : ''}`;
 
 // Edit distance <= 1 (insert, delete, replace, swap of neighbours) between a typed word and the start of a name word.
 function closeEnough(typed, word) {
