@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { locationText, substitutes, genericKey, strengthOf, prepare, search, stockOf, takeLocal, parseQuery, findByBarcode, parseDiscount, normalize } from '../lib/search.js';
+import { unitChoices, defaultUnitFor, unitLabel, locationText, substitutes, genericKey, strengthOf, prepare, search, stockOf, takeLocal, parseQuery, findByBarcode, parseDiscount, normalize } from '../lib/search.js';
 
 const day = 86400000;
 const now = Date.now();
@@ -77,9 +77,13 @@ test('takeLocal sells the earliest expiry first and skips expired', () => {
   assert.deepEqual(after.map(([q]) => q), [50, 7]);
   assert.equal(takeLocal([[5, now + day]], 5, now).length, 0);
 });
-test('quantity prefix: 3*pana / 2x extra', () => {
+test('quantity and unit prefix: 3*pana, 10t*pana, 2s*pana', () => {
   assert.deepEqual(parseQuery('3*pana'), { qty: 3, text: 'pana' });
   assert.deepEqual(parseQuery('12 x panadol'), { qty: 12, text: 'panadol' });
+  assert.deepEqual(parseQuery('10t*panadol'), { qty: 10, text: 'panadol', unit: 'unit' });  // 10 tablets
+  assert.deepEqual(parseQuery('2s*panadol'), { qty: 2, text: 'panadol', unit: 'strip' });
+  assert.deepEqual(parseQuery('1B*panadol'), { qty: 1, text: 'panadol', unit: 'box' });
+  assert.deepEqual(parseQuery('3 u x extra'), { qty: 3, text: 'extra', unit: 'unit' });
   assert.deepEqual(parseQuery('500mg'), { qty: 1, text: '500mg' });
   assert.deepEqual(parseQuery('panadol 500'), { qty: 1, text: 'panadol 500' });
 });
@@ -181,4 +185,18 @@ test('an address maps to the menu item that owns it (longest match)', () => {
   assert.equal(pageFor('/medicines/import', items).perm, 'medicines:manage'); // extra page, stricter than the list
   assert.equal(pageFor('/purchase-orders', items).href, '/purchase-orders'); // not confused with /purchases
   assert.equal(pageFor('/login', items), undefined);
+});
+
+test('units that make sense for each kind of pack', () => {
+  const m = (stripsPerBox, unitsPerStrip, extra = {}) => ({ stripsPerBox, unitsPerStrip, ...extra });
+  assert.deepEqual(unitChoices(m(10, 10)), ['box', 'strip', 'unit']);   // tablets
+  assert.deepEqual(unitChoices(m(10, 1)), ['box', 'unit']);              // box of 10 sachets
+  assert.deepEqual(unitChoices(m(1, 12)), ['box', 'unit']);              // one pack of 12 pieces
+  assert.deepEqual(unitChoices(m(1, 1)), ['unit']);                      // a single bottle
+  assert.equal(defaultUnitFor(m(10, 10)), 'strip');
+  assert.equal(defaultUnitFor(m(1, 1)), 'unit');
+  assert.equal(unitLabel(m(10, 10, { dosageForm: 'Tablet' }), 'unit'), 'Tablet');
+  assert.equal(unitLabel(m(10, 10, { dosageForm: 'Capsule' }), 'unit'), 'Capsule');
+  assert.equal(unitLabel(m(1, 1, { dosageForm: 'Syrup' }), 'unit'), 'Unit');
+  assert.equal(unitLabel(m(10, 10), 'box'), 'Box');
 });

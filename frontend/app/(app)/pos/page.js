@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCatalog } from '@/context/CatalogContext';
 import { dateOnly, dateTime, money, stockText } from '@/lib/format';
 import { baseQtyOfType, round2, sellPrice } from '@/lib/units';
-import { locationText, parseDiscount, parseQuery, stockOf } from '@/lib/search';
+import { defaultUnitFor, locationText, parseDiscount, parseQuery, stockOf, unitChoices, unitLabel } from '@/lib/search';
 import { beep } from '@/lib/beep';
 import { receiptMessage, waLink } from '@/lib/whatsapp';
 import { useSettings } from '@/context/SettingsContext';
@@ -22,7 +22,6 @@ const read = (key, fallback) => { try { return JSON.parse(localStorage.getItem(k
 const write = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage full or blocked */ } };
 
 const NO_PAY = { cash: '', card: '', bank_transfer: '', credit: '' };
-const defaultUnit = (m) => (m.salePrice?.strip > 0 || m.stripsPerBox > 1 ? 'strip' : m.salePrice?.unit > 0 ? 'unit' : 'box');
 const uid = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
 export default function PosPage() {
@@ -36,7 +35,6 @@ export default function PosPage() {
 
   const [term, setTerm] = useState('');
   const [active, setActive] = useState(0);
-  const [category, setCategory] = useState(null);
   const [cart, setCart] = useState([]); // { key, id, unitType, qty, name }
   const [lastKey, setLastKey] = useState(null);
   const [altFor, setAltFor] = useState(null); // medicine id whose alternatives are shown instead of the search results
@@ -68,19 +66,19 @@ export default function PosPage() {
   // ---------- search (all in memory, no waiting) ----------
   const parsed = useMemo(() => parseQuery(term), [term]);
   const results = useMemo(
-    () => (catalog?.ready ? catalog.search(parsed.text, { limit: parsed.text || category ? 60 : 30, category }) : []),
-    [catalog, parsed.text, category],
+    () => (catalog?.ready && parsed.text ? catalog.search(parsed.text, { limit: 40 }) : []), // nothing is listed until something is typed or scanned
+    [catalog, parsed.text],
   );
   const altMed = altFor ? catalog?.get(altFor) : null;
   const alts = useMemo(() => (altMed ? catalog.substitutes(altMed) : []), [catalog, altMed]);
   const shown = altMed ? alts : results; // what the list on the left currently contains
-  useEffect(() => { setActive(0); setAltFor(null); }, [parsed.text, category]);
+  useEffect(() => { setActive(0); setAltFor(null); }, [parsed.text]);
   useEffect(() => { setActive(0); }, [altFor]);
   useEffect(() => { listRef.current?.querySelector(`[data-i="${active}"]`)?.scrollIntoView({ block: 'nearest' }); }, [active]);
 
   const fail = (msg) => { setError(msg); sound('bad'); };
 
-  function addToCart(med, qty = 1) {
+  function addToCart(med, qty = 1, unit) {
     const stock = stockOf(med);
     if (stock.isOut) {
       fail(`${med.name}: ${stock.onlyExpired ? 'only expired stock is left, it cannot be sold' : 'out of stock'}`);
@@ -88,7 +86,7 @@ export default function PosPage() {
       return false;
     }
     setError(''); setAltFor(null);
-    const unitType = defaultUnit(med);
+    const unitType = unit || defaultUnitFor(med);
     const existing = cart.find((l) => l.id === med._id && l.unitType === unitType);
     let key;
     if (existing) {
@@ -119,9 +117,9 @@ export default function PosPage() {
       return true;
     }
     const byCode = catalog.byBarcode(q.text);
-    if (byCode) { addToCart(byCode, q.qty); return true; }
+    if (byCode) { addToCart(byCode, q.qty, q.unit); return true; }
     const pick = q.text === parsed.text ? shown[active] : catalog.search(q.text, { limit: 1 })[0];
-    if (pick) addToCart(pick, q.qty);
+    if (pick) addToCart(pick, q.qty, q.unit);
     else { fail(`No medicine found for "${q.text}"`); searchRef.current?.select(); }
     return true;
   }
@@ -302,15 +300,9 @@ export default function PosPage() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted" />
               <Input ref={searchRef} className="h-11 pl-10 pr-24 text-base" placeholder="Scan barcode or type medicine name" value={term} autoComplete="off" spellCheck={false}
                 onChange={(e) => setTerm(e.target.value)} onKeyDown={onSearchKey} aria-label="Search medicine" />
-              {parsed.qty > 1 && parsed.text && <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded bg-mint px-2 py-0.5 text-xs font-semibold text-pine-dark">Qty {parsed.qty}</span>}
+              {(parsed.qty > 1 || parsed.unit) && parsed.text && <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded bg-mint px-2 py-0.5 text-xs font-semibold text-pine-dark">Qty {parsed.qty}{parsed.unit ? ` ${parsed.unit === 'unit' ? 'loose' : parsed.unit}` : ''}</span>}
             </div>
-            <p className="hidden truncate text-[11px] text-muted xl:block"><Kbd>Enter</Kbd> add &middot; <Kbd>Up</Kbd><Kbd>Down</Kbd> choose &middot; <b>3*pana</b> = 3 pieces &middot; <Kbd>F4</Kbd> quantity &middot; <Kbd>F8</Kbd> hold &middot; <Kbd>F9</Kbd> or <Kbd>Ctrl+Enter</Kbd> complete</p>
-            {catalog?.categories?.length > 0 && (
-              <div className="no-scrollbar flex gap-1.5 overflow-x-auto" role="tablist" aria-label="Category">
-                <Chip on={!category} onClick={() => setCategory(null)}>All</Chip>
-                {catalog.categories.map((c) => <Chip key={c._id} on={category === c._id} onClick={() => setCategory(category === c._id ? null : c._id)}>{c.name}</Chip>)}
-              </div>
-            )}
+            <p className="hidden truncate text-[11px] text-muted xl:block">Type a name or scan &middot; click <b>Box</b> / <b>Strip</b> / <b>Tablet</b> (or <Kbd>Enter</Kbd> for strip) &middot; <Kbd>Up</Kbd><Kbd>Down</Kbd> choose &middot; <b>10t*pana</b> = 10 tablets &middot; <Kbd>F9</Kbd> or <Kbd>Ctrl+Enter</Kbd> complete</p>
           </div>
 
           <div ref={listRef} className="max-h-[46vh] min-h-0 flex-1 overflow-y-auto xl:max-h-none" role="listbox" aria-label="Medicines">
@@ -324,13 +316,18 @@ export default function PosPage() {
                 <button className="shrink-0 text-xs font-medium text-amber underline" onClick={() => setAltFor(null)}>Back to search</button>
               </div>
             )}
-            {catalog?.ready && !altMed && !results.length && (
-              <div className="p-10 text-center text-muted">
-                {parsed.text ? <>No medicine matches <b className="text-ink">&ldquo;{parsed.text}&rdquo;</b>. Check the spelling, try the generic name, or scan the barcode.</> : 'No medicines in this category yet.'}
+            {catalog?.ready && !altMed && !parsed.text && (
+              <div className="flex flex-col items-center px-6 py-14 text-center text-muted">
+                <Search className="mb-3 h-10 w-10 text-line" />
+                <p className="text-base font-medium text-ink">Type a medicine name or scan its barcode</p>
+                <p className="mt-1 max-w-sm text-sm">Only the medicines you search for are shown. Choose Box, Strip or Tablet on the right of the medicine and the price follows.</p>
               </div>
             )}
+            {catalog?.ready && !altMed && parsed.text && !results.length && (
+              <div className="p-10 text-center text-muted">No medicine matches <b className="text-ink">&ldquo;{parsed.text}&rdquo;</b>. Check the spelling, try the generic name, or scan the barcode.</div>
+            )}
             <ul>
-              {shown.map((m, i) => <MedicineRow key={m._id} med={m} i={i} on={i === active} saleType={saleType} sameStrength={altMed ? m.sameStrength : undefined} onPick={() => addToCart(m, parsed.qty)} onHover={hoverRow(i)} />)}
+              {shown.map((m, i) => <MedicineRow key={m._id} med={m} i={i} on={i === active} saleType={saleType} sameStrength={altMed ? m.sameStrength : undefined} onPick={(unit) => addToCart(m, parsed.qty, unit)} onHover={hoverRow(i)} />)}
             </ul>
           </div>
         </Card>
@@ -455,15 +452,12 @@ function Kbd({ children }) {
   return <kbd className="rounded border border-line bg-paper px-1 font-sans text-[11px] text-ink">{children}</kbd>;
 }
 
-function Chip({ on, onClick, children }) {
-  return <button role="tab" aria-selected={on} onClick={onClick} className={`shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${on ? 'border-pine bg-pine text-white' : 'border-line bg-white text-ink hover:bg-mint'}`}>{children}</button>;
-}
-
 // One medicine in the find list: what it is, what it costs, what is left, when it expires.
+// One medicine in the search results. The cashier picks WHAT to give by pressing Box, Strip or Tablet: each button shows
+// that unit's price. Clicking the name (or pressing Enter) gives the usual unit (strip, or a single unit for syrups etc).
 function MedicineRow({ med, i, on, saleType, sameStrength, onPick, onHover }) {
   const s = stockOf(med);
-  const unit = defaultUnit(med);
-  const price = sellPrice(med, saleType, unit);
+  const usual = defaultUnitFor(med);
   let stockBadge;
   if (s.onlyExpired) stockBadge = <Badge tone="bad">Expired stock only</Badge>;
   else if (s.isOut) stockBadge = <Badge tone="bad">Out of stock</Badge>;
@@ -471,21 +465,26 @@ function MedicineRow({ med, i, on, saleType, sameStrength, onPick, onHover }) {
   else if (s.isLow) stockBadge = <Badge tone="warn">Low</Badge>;
   return (
     <li data-i={i} role="option" aria-selected={on} aria-disabled={s.isOut}>
-      <button type="button" onClick={onPick} onMouseMove={onHover}
-        className={`grid w-full grid-cols-[1fr_auto] items-center gap-x-3 border-b border-line px-3 py-1.5 text-left ${on ? 'bg-mint' : 'hover:bg-paper'} ${s.isOut ? 'opacity-60' : ''}`}>
-        <span className="min-w-0">
-          <span className="flex items-center gap-2"><span className="truncate font-medium">{med.name}</span>{med.requiresPrescription && <Badge tone="warn">Rx</Badge>}{med.storage === 'fridge' && <Badge tone="good">Fridge</Badge>}{sameStrength === true && <Badge tone="good">Same strength</Badge>}{sameStrength === false && <Badge>Different strength</Badge>}</span>
+      <div onMouseMove={onHover} className={`flex items-stretch gap-2 border-b border-line px-3 py-1.5 ${on ? 'bg-mint' : 'hover:bg-paper'} ${s.isOut ? 'opacity-70' : ''}`}>
+        <button type="button" onClick={() => onPick()} className="min-w-0 flex-1 text-left" title={`Add ${unitLabel(med, usual)}`}>
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5"><span className="font-medium">{med.name}</span>{med.requiresPrescription && <Badge tone="warn">Rx</Badge>}{med.storage === 'fridge' && <Badge tone="good">Fridge</Badge>}{sameStrength === true && <Badge tone="good">Same strength</Badge>}{sameStrength === false && <Badge>Different strength</Badge>}</span>
           <span className="block truncate text-xs text-muted">{[med.genericName, med.manufacturer].filter(Boolean).join(' | ') || '\u00a0'}</span>
           {locationText(med) && <span className="block truncate text-xs font-medium text-pine-dark">{locationText(med)}</span>}
-        </span>
-        <span className="num text-right">
-          <span className="block font-semibold">{price ? money(price) : 'No price'}<span className="text-xs font-normal text-muted"> / {unit}</span></span>
-          <span className="flex items-center justify-end gap-2 text-xs text-muted">
-            {stockBadge}
-            {!s.isOut && <span>{stockText(s.display)}{s.nearestExpiry ? ` | exp ${dateOnly(s.nearestExpiry).slice(3)}` : ''}</span>}
-          </span>
-        </span>
-      </button>
+          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted">{stockBadge}{!s.isOut && <span>{stockText(s.display)}{s.nearestExpiry ? ` | exp ${dateOnly(s.nearestExpiry).slice(3)}` : ''}</span>}</span>
+        </button>
+        <div className="flex shrink-0 items-center gap-1.5" role="group" aria-label={`Choose unit for ${med.name}`}>
+          {unitChoices(med).map((u) => {
+            const price = sellPrice(med, saleType, u);
+            return (
+              <button key={u} type="button" disabled={!price} onClick={() => onPick(u)} title={price ? `Add one ${unitLabel(med, u).toLowerCase()}` : 'No price set'}
+                className={`num flex min-w-[64px] flex-col items-center rounded-md border px-2 py-1 leading-tight transition-colors disabled:opacity-40 ${u === usual ? 'border-pine bg-pine text-white hover:bg-pine-dark' : 'border-line bg-white hover:border-pine hover:bg-mint'}`}>
+                <span className="text-[10px] font-medium uppercase tracking-wide opacity-80">{unitLabel(med, u)}</span>
+                <span className="text-sm font-semibold">{price ? money(price) : '-'}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </li>
   );
 }
@@ -504,13 +503,13 @@ function BillLine({ l, hot, onChange, onRemove, onAlt, onDone }) {
         <p className="num shrink-0 text-sm font-semibold">{money(l.total)}</p>
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <Select value={l.unitType} onChange={(e) => onChange({ unitType: e.target.value })} className="h-7 w-[78px] px-1.5 text-xs" aria-label="Unit"><option value="box">Box</option><option value="strip">Strip</option><option value="unit">Unit</option></Select>
+        <Select value={l.unitType} onChange={(e) => onChange({ unitType: e.target.value })} className="h-7 w-[78px] px-1.5 text-xs" aria-label="Unit">{[...new Set([...unitChoices(l.med), l.unitType])].map((u) => <option key={u} value={u}>{unitLabel(l.med, u)}</option>)}</Select>
         <Button variant="secondary" size="sm" className="h-7 w-7 px-0" onClick={() => onChange({ qty: Math.max(1, l.qty - 1) })} aria-label="Less"><Minus className="h-3.5 w-3.5" /></Button>
         <Input id={`qty-${l.key}`} className="num h-7 w-12 px-1 text-center text-sm" type="number" min="1" value={l.qty}
           onChange={(e) => onChange({ qty: Math.max(1, parseInt(e.target.value, 10) || 1) })}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onDone(); } }} aria-label="Quantity" />
         <Button variant="secondary" size="sm" className="h-7 w-7 px-0" onClick={() => onChange({ qty: l.qty + 1 })} aria-label="More"><Plus className="h-3.5 w-3.5" /></Button>
-        <span className="num text-xs text-muted">x {money(l.unitPrice)} per {l.unitType}</span>
+        <span className="num text-xs text-muted">x {money(l.unitPrice)} per {unitLabel(l.med, l.unitType).toLowerCase()}</span>
         <span className="ml-auto flex items-center gap-0.5">
           {l.med.genericName && <button className="rounded p-1 text-muted hover:bg-mint hover:text-ink" onClick={onAlt} title="Alternatives: other brands with the same generic name" aria-label="Alternatives"><ArrowLeftRight className="h-4 w-4" /></button>}
           <button className="rounded p-1 text-muted hover:bg-danger-soft hover:text-danger" onClick={onRemove} aria-label="Remove"><Trash2 className="h-4 w-4" /></button>

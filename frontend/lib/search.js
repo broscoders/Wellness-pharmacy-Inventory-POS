@@ -72,11 +72,39 @@ export function takeLocal(batches, baseQty, now = Date.now()) {
   return out.filter(([qty]) => qty > 0);
 }
 
-// "3*panadol" or "3x panadol" -> { qty: 3, text: 'panadol' }. A plain search returns qty 1.
+// What can be typed in the search box before the name:
+//   "3*panadol"   -> 3 of the default unit      "3x panadol" is the same
+//   "10t*panadol" -> 10 tablets (loose units)   "2s*..." -> 2 strips   "1b*..." -> 1 box
+// A plain search returns qty 1 and no unit.
+const UNIT_LETTERS = { b: 'box', s: 'strip', t: 'unit', u: 'unit' };
 export function parseQuery(raw) {
-  const m = /^\s*(\d{1,4})\s*[*xX\u00d7]\s*(\S.*)$/.exec(String(raw ?? ''));
-  if (m && m[2].trim().length >= 2) return { qty: Math.max(1, parseInt(m[1], 10)), text: m[2].trim() };
+  const m = /^\s*(\d{1,4})\s*([bBsStTuU])?\s*[*xX\u00d7]\s*(\S.*)$/.exec(String(raw ?? ''));
+  if (m && m[3].trim().length >= 2) {
+    const out = { qty: Math.max(1, parseInt(m[1], 10)), text: m[3].trim() };
+    if (m[2]) out.unit = UNIT_LETTERS[m[2].toLowerCase()];
+    return out;
+  }
   return { qty: 1, text: String(raw ?? '').trim() };
+}
+
+// Which units make sense to sell for this medicine (a syrup bottle has no strips; a box of sachets has no strip either).
+//   10 strips x 10 tablets -> Box, Strip, Tablet      single bottle -> Unit only
+export function unitChoices(m) {
+  const strips = m.stripsPerBox || 1; const per = m.unitsPerStrip || 1;
+  const out = [];
+  if (strips * per > 1) out.push('box');
+  if (strips > 1 && per > 1) out.push('strip');
+  out.push('unit');
+  return out;
+}
+// the unit used when the cashier just presses Enter
+export const defaultUnitFor = (m) => (unitChoices(m).includes('strip') ? 'strip' : 'unit');
+// "unit" is called by the name a pharmacist uses
+export function unitLabel(m, unit) {
+  if (unit === 'box') return 'Box';
+  if (unit === 'strip') return 'Strip';
+  const f = String(m.dosageForm || '').toLowerCase();
+  return f === 'tablet' ? 'Tablet' : f === 'capsule' ? 'Capsule' : 'Unit';
 }
 
 // Edit distance <= 1 (insert, delete, replace, swap of neighbours) between a typed word and the start of a name word.
