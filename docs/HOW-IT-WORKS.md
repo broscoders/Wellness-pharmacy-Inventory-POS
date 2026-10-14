@@ -22,12 +22,13 @@ The server still has the last word: when a bill is completed, the server re-chec
 | Key | What it does |
 |---|---|
 | Type / scan, then **Enter** | Add the highlighted medicine (scanner: exact barcode) |
-| **Up / Down** | Choose a different result |
+| **Up / Down**, then **Enter** | Choose a row in the list and add it. No typing needed; works even after you clicked a button or a category |
+| Just start typing | The letters go to the search box from anywhere on the POS |
 | `3*pana` then Enter | Add 3 of the first match |
 | **F2** | Jump back to the search box |
 | **F4** | Edit the quantity of the last added medicine |
 | **F8** | Hold this bill (serve another customer first) |
-| **F9** | Complete the sale |
+| **F9** or **Ctrl+Enter** | Complete the sale (Ctrl+Enter is for laptops where F9 needs the Fn key). If the bill cannot be completed, the screen says why (for example: tick the prescription check, choose a customer for udhaar) |
 | **Enter** on the receipt window | Start a new sale (**P** prints) |
 
 If the customer pays the exact amount in cash, the cashier types nothing: F9 completes the bill with exact cash. For bigger notes there are quick buttons and the change is shown. The Discount box is in percent: type `2` for 2% off (the rupee amount is shown next to it). For a fixed amount type `rs 50`.

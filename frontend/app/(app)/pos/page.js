@@ -104,20 +104,40 @@ export default function PosPage() {
     return true;
   }
 
-  function onSearchKey(e) {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, Math.max(shown.length - 1, 0))); return; }
-    if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); return; }
-    if (e.key === 'Escape') { setTerm(''); setError(''); return; }
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    const q = parseQuery(e.currentTarget.value); // read the box itself: a scanner types and presses Enter within milliseconds
-    if (!q.text) return;
+  // Up / Down choose a row, Enter adds the chosen row (or what was typed / scanned), Escape clears.
+  // Returns true when the key was used. `box` is the text in the search box right now.
+  function listKey(key, box) {
+    if (key === 'ArrowDown') { setActive((i) => Math.min(i + 1, Math.max(shown.length - 1, 0))); return true; }
+    if (key === 'ArrowUp') { setActive((i) => Math.max(i - 1, 0)); return true; }
+    if (key === 'Escape') { setTerm(''); setError(''); setAltFor(null); return true; }
+    if (key !== 'Enter') return false;
+    const q = parseQuery(box); // read the box itself: a scanner types and presses Enter within milliseconds
+    if (!q.text) {
+      // nothing typed: Enter adds the row that is highlighted in the list (so Up/Down + Enter works with no typing at all)
+      const row = shown[active];
+      if (row) addToCart(row, 1);
+      return true;
+    }
     const byCode = catalog.byBarcode(q.text);
-    if (byCode) { addToCart(byCode, q.qty); return; }
+    if (byCode) { addToCart(byCode, q.qty); return true; }
     const pick = q.text === parsed.text ? shown[active] : catalog.search(q.text, { limit: 1 })[0];
     if (pick) addToCart(pick, q.qty);
-    else { fail(`No medicine found for "${q.text}"`); e.currentTarget.select(); }
+    else { fail(`No medicine found for "${q.text}"`); searchRef.current?.select(); }
+    return true;
   }
+  function onSearchKey(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return; // Ctrl+Enter completes the sale (handled for the whole page below)
+    if (listKey(e.key, e.currentTarget.value)) e.preventDefault();
+  }
+  // A mouse that is just resting over the list must not steal the highlight when the list scrolls under it:
+  // only a real movement of the pointer moves the highlight.
+  const lastMouse = useRef({ x: -1, y: -1 });
+  const hoverRow = (i) => (e) => {
+    const m = lastMouse.current;
+    if (Math.abs(e.screenX - m.x) < 3 && Math.abs(e.screenY - m.y) < 3) return;
+    lastMouse.current = { x: e.screenX, y: e.screenY };
+    setActive(i);
+  };
 
   // ---------- the bill ----------
   const setLine = (key, patch) => setCart((c) => c.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -152,7 +172,16 @@ export default function PosPage() {
   const needsRx = lines.some((l) => l.med?.requiresPrescription);
   const hasShort = lines.some((l) => l.short || l.missing);
   const hasNoPrice = lines.some((l) => l.med && !l.unitPrice);
-  const canPay = lines.length > 0 && total > 0 && !discOver && remaining <= 0 && !hasShort && !hasNoPrice && (!needsRx || rx || !!rxLink) && (eff.credit === 0 || !!customer);
+  const blockReason = !lines.length ? 'Add a medicine to the bill first'
+    : lines.some((l) => l.missing) ? 'A medicine on the bill is no longer available: remove it'
+    : lines.some((l) => l.short) ? 'There is not enough stock for a medicine on the bill'
+    : hasNoPrice ? 'A medicine on the bill has no price for the chosen unit'
+    : total <= 0 ? 'The bill total is zero'
+    : discOver ? `Your discount limit is ${maxPct}% of the bill. Ask the owner for more.`
+    : needsRx && !rx && !rxLink ? 'Tick "I have checked the prescription" for the Rx medicine'
+    : eff.credit > 0 && !customer ? 'Choose a customer to record udhaar.'
+    : remaining > 0 ? `Payment is short by ${money(remaining)}` : '';
+  const canPay = !blockReason;
 
   const cashButtons = useMemo(() => {
     if (!total) return [];
@@ -161,7 +190,8 @@ export default function PosPage() {
   }, [total]);
 
   async function checkout() {
-    if (!canPay || busy) return;
+    if (busy) return;
+    if (!canPay) { fail(blockReason); return; } // say WHY, instead of silently doing nothing
     setBusy(true); setError('');
     const payments = [['cash', eff.cash], ['card', eff.card], ['bank_transfer', eff.bank_transfer], ['credit', eff.credit]].filter(([, a]) => a > 0).map(([method, amount]) => ({ method, amount }));
     const body = {
@@ -209,7 +239,7 @@ export default function PosPage() {
     searchRef.current?.focus();
   }
 
-  // ---------- keyboard: F2 search, F4 quantity of last line, F8 hold, F9 complete; Enter / P on the receipt ----------
+  // ---------- keyboard: F2 search, F4 quantity of last line, F8 hold, F9 or Ctrl+Enter complete; Enter / P on the receipt ----------
   useEffect(() => {
     function onKey(e) {
       if (done) {
@@ -219,10 +249,20 @@ export default function PosPage() {
         return;
       }
       if (heldOpen) return;
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); checkout(); return; } // works on laptops where F-keys need Fn
       if (e.key === 'F2') { e.preventDefault(); searchRef.current?.focus(); searchRef.current?.select(); }
       else if (e.key === 'F4') { e.preventDefault(); const el = document.getElementById(`qty-${lastKey ?? cart[cart.length - 1]?.key}`); el?.focus(); el?.select(); }
       else if (e.key === 'F8') { e.preventDefault(); holdBill(); }
       else if (e.key === 'F9') { e.preventDefault(); checkout(); }
+      else if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        // Focus is not in a text box (for example after clicking a category or a button): the keys still work.
+        const tag = e.target?.tagName;
+        const inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable;
+        if (inField) return;
+        const onButton = tag === 'BUTTON' || tag === 'A';
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Escape' || (e.key === 'Enter' && !onButton)) { e.preventDefault(); searchRef.current?.focus(); listKey(e.key, searchRef.current?.value || ''); }
+        else if (e.key.length === 1 && e.key !== ' ') searchRef.current?.focus(); // start typing anywhere: the letters go to the search box
+      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -264,7 +304,7 @@ export default function PosPage() {
                 onChange={(e) => setTerm(e.target.value)} onKeyDown={onSearchKey} aria-label="Search medicine" />
               {parsed.qty > 1 && parsed.text && <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded bg-mint px-2 py-0.5 text-xs font-semibold text-pine-dark">Qty {parsed.qty}</span>}
             </div>
-            <p className="hidden truncate text-[11px] text-muted xl:block"><Kbd>Enter</Kbd> add &middot; <Kbd>Up</Kbd><Kbd>Down</Kbd> choose &middot; <b>3*pana</b> = 3 pieces &middot; <Kbd>F4</Kbd> quantity &middot; <Kbd>F8</Kbd> hold &middot; <Kbd>F9</Kbd> complete</p>
+            <p className="hidden truncate text-[11px] text-muted xl:block"><Kbd>Enter</Kbd> add &middot; <Kbd>Up</Kbd><Kbd>Down</Kbd> choose &middot; <b>3*pana</b> = 3 pieces &middot; <Kbd>F4</Kbd> quantity &middot; <Kbd>F8</Kbd> hold &middot; <Kbd>F9</Kbd> or <Kbd>Ctrl+Enter</Kbd> complete</p>
             {catalog?.categories?.length > 0 && (
               <div className="no-scrollbar flex gap-1.5 overflow-x-auto" role="tablist" aria-label="Category">
                 <Chip on={!category} onClick={() => setCategory(null)}>All</Chip>
@@ -290,7 +330,7 @@ export default function PosPage() {
               </div>
             )}
             <ul>
-              {shown.map((m, i) => <MedicineRow key={m._id} med={m} i={i} on={i === active} saleType={saleType} sameStrength={altMed ? m.sameStrength : undefined} onPick={() => addToCart(m, parsed.qty)} onHover={() => setActive(i)} />)}
+              {shown.map((m, i) => <MedicineRow key={m._id} med={m} i={i} on={i === active} saleType={saleType} sameStrength={altMed ? m.sameStrength : undefined} onPick={() => addToCart(m, parsed.qty)} onHover={hoverRow(i)} />)}
             </ul>
           </div>
         </Card>
@@ -363,8 +403,7 @@ export default function PosPage() {
                 </div>
               </div>
 
-              {discOver && <p className="text-sm font-medium text-danger">Your discount limit is {maxPct}% of the bill. Ask the owner for more.</p>}
-              {eff.credit > 0 && !customer && <p className="text-sm text-danger">Choose a customer to record udhaar.</p>}
+              {lines.length > 0 && blockReason && remaining <= 0 && <p className="text-sm font-medium text-amber">{blockReason}</p>}
               {total > 0 && (remaining > 0 || change > 0) && (
                 <div className="num text-sm">
                   {remaining > 0 && <p className="font-medium text-danger">Still to pay: {money(remaining)}</p>}

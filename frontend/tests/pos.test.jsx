@@ -1,6 +1,6 @@
 // Renders the real POS screen with the real catalog provider; only the network (fetch) is faked.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, within, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AuthProvider } from '@/context/AuthContext';
 import { CatalogProvider } from '@/context/CatalogContext';
@@ -270,5 +270,79 @@ describe('shelf location', () => {
       await user.keyboard('{Enter}');
       expect(screen.getByText(/Keep in fridge/)).toBeInTheDocument(); // the bill line reminds where it is and how to store it
     } finally { for (const k of ['rack', 'row', 'side']) CATALOG[1][k] = ''; CATALOG[1].storage = 'room'; }
+  });
+});
+
+describe('keyboard only (no mouse needed)', () => {
+  const options = () => within(screen.getByRole('listbox')).getAllByRole('option');
+  const rowButton = (i) => within(options()[i]).getByRole('button'); // the pointer events belong to the button inside the row
+
+  it('Up/Down then Enter adds the highlighted medicine even with an empty search box', async () => {
+    const user = userEvent.setup();
+    await open();
+    expect(options()[0]).toHaveAttribute('aria-selected', 'true');
+    await user.keyboard('{ArrowDown}{ArrowDown}');            // Augmentin -> Brufen -> Calpol
+    expect(options()[2]).toHaveAttribute('aria-selected', 'true');
+    await user.keyboard('{Enter}');
+    const line = screen.getByLabelText('Quantity').closest('li');
+    expect(line).toHaveTextContent('Calpol Syrup');
+    expect(searchBox()).toHaveFocus();                        // ready for the next one
+  });
+
+  it('a mouse resting over the list does not steal the highlight from the arrow keys', async () => {
+    const user = userEvent.setup();
+    await open();
+    fireEvent.mouseMove(rowButton(3), { screenX: 10, screenY: 10 });   // the pointer really moves onto the last row
+    expect(options()[3]).toHaveAttribute('aria-selected', 'true');
+    await user.keyboard('{ArrowUp}');
+    expect(options()[2]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.mouseMove(rowButton(3), { screenX: 10, screenY: 10 });   // the browser repeats the event when the list scrolls under a still pointer
+    expect(options()[2]).toHaveAttribute('aria-selected', 'true');     // keyboard choice stays
+    fireEvent.mouseMove(rowButton(0), { screenX: 80, screenY: 40 });   // a real movement does move it
+    expect(options()[0]).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('the keys still work after clicking a button (focus is not in the search box)', async () => {
+    const user = userEvent.setup();
+    await open();
+    await user.click(screen.getByRole('tab', { name: 'Tablet' }));
+    await user.click(screen.getByRole('tab', { name: 'Tablet' })); // toggled off again: focus stays on the chip
+    expect(document.activeElement).not.toBe(searchBox());
+    await user.keyboard('{ArrowDown}{ArrowDown}{Enter}');
+    expect(screen.getByLabelText('Quantity').closest('li')).toHaveTextContent('Calpol Syrup');
+  });
+
+  it('typing anywhere starts a search', async () => {
+    const user = userEvent.setup();
+    await open();
+    await user.click(screen.getByRole('tab', { name: 'Tablet' }));
+    await user.keyboard('pana');
+    expect(searchBox()).toHaveValue('pana');
+    expect(options()[0]).toHaveTextContent('Panadol 500mg');
+  });
+
+  it('Ctrl+Enter completes the sale (for laptops where F9 needs the Fn key)', async () => {
+    const user = userEvent.setup();
+    await open();
+    await user.type(searchBox(), 'pana{Enter}');
+    await user.keyboard('{Control>}{Enter}{/Control}');
+    await screen.findByText('Sale completed');
+    expect(saleBodies).toHaveLength(1);
+  });
+
+  it('F9 never fails silently: it says why the bill cannot be completed', async () => {
+    const user = userEvent.setup();
+    await open();
+    await user.keyboard('{F9}');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Add a medicine to the bill first');
+    await user.type(searchBox(), 'augm{Enter}');                      // a prescription medicine
+    expect(screen.getByText(/Tick "I have checked the prescription"/)).toBeInTheDocument(); // visible before pressing anything
+    await user.keyboard('{F9}');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/prescription/);
+    expect(saleBodies).toHaveLength(0);
+    await user.click(screen.getByRole('checkbox', { name: /checked the prescription/ }));
+    await user.keyboard('{F9}');
+    await screen.findByText('Sale completed');
+    expect(saleBodies).toHaveLength(1);
   });
 });
