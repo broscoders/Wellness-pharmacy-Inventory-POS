@@ -123,7 +123,6 @@ function scoreItem(it, terms, whole, wholeCompact, now) {
   else if (it._n.startsWith(whole)) score += 400;
   else if (wholeCompact.length >= 3 && it._c.startsWith(wholeCompact)) score += 300;
   else if (wholeCompact.length >= 3 && it._c.includes(wholeCompact)) score += 120;
-  score += Math.min(it.pop || 0, 60) / 2; // sells often -> a little higher
   const sellable = (it.batches || []).some(([q, e]) => q > 0 && e >= now);
   if (!sellable) score -= 1000; // out of stock / expired always sinks below sellable matches
   return score;
@@ -141,8 +140,8 @@ export function search(items, query, { limit = 40, category = null, now = Date.n
   const pool = category ? items.filter((i) => i.category === category) : items;
   const whole = normalize(query);
   if (!whole) {
-    // nothing typed: best sellers first, then A-Z
-    return [...pool].sort((a, b) => (b.pop || 0) - (a.pop || 0) || byName(a, b)).slice(0, limit);
+    // nothing typed: the plain A-Z list
+    return [...pool].sort(byName).slice(0, limit);
   }
   const terms = whole.split(' ');
   const wholeCompact = whole.replace(/ /g, '');
@@ -156,7 +155,7 @@ export function search(items, query, { limit = 40, category = null, now = Date.n
     for (const it of pool) {
       if (seen.has(it._id)) continue;
       const ok = terms.every((t) => it._words.some((w) => closeEnough(t, w)) || it._gwords.some((w) => closeEnough(t, w)));
-      if (ok) hits.push([-500 + Math.min(it.pop || 0, 60) / 2, it]);
+      if (ok) hits.push([-500, it]);
     }
   }
   hits.sort((a, b) => b[0] - a[0] || byName(a[1], b[1]));
@@ -208,7 +207,7 @@ export function substitutes(items, med, { limit = 8, now = Date.now() } = {}) {
   return items
     .filter((it) => it._id !== med._id && genericKey(it.genericName) === key && sellable(it))
     .map((it) => ({ it, same: !!strength && strengthOf(it.name) === strength }))
-    .sort((a, b) => Number(b.same) - Number(a.same) || (b.it.pop || 0) - (a.it.pop || 0) || byName(a.it, b.it))
+    .sort((a, b) => Number(b.same) - Number(a.same) || byName(a.it, b.it))
     .slice(0, limit)
     .map(({ it, same }) => ({ ...it, sameStrength: same }));
 }

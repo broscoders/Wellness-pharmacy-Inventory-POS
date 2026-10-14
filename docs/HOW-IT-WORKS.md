@@ -13,6 +13,11 @@ Now: when the POS opens, the full medicine list (names, generic names, prices, s
 
 The server still has the last word: when a bill is completed, the server re-checks stock, expiry and prices. An old screen can never sell expired or missing stock.
 
+## Screen space on a small laptop
+- The 3-bar button at the top of the menu folds it into a thin icon strip (hover an icon to see its name). The 3-bar button on the strip opens the full menu over the page, like on a phone. The choice is remembered on that computer.
+- The medicine list on the POS is plain A to Z (it is not reordered by what sold most). The bill shows the whole medicine name, its generic name and maker, the unit, quantity, rate and amount.
+- The Total and the Complete sale button stay at the bottom; if the screen is short, the customer, cash and prescription part scrolls inside its own box. Browser zoom 90% (Ctrl and minus) shows even more.
+
 ## Counter shortcuts
 | Key | What it does |
 |---|---|

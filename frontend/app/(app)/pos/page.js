@@ -230,7 +230,6 @@ export default function PosPage() {
 
   const secondsAgo = catalog?.status.syncedAt ? Math.max(0, Math.round((Date.now() - catalog.status.syncedAt) / 1000)) : null;
   const offline = !!catalog?.status.error && catalog.count > 0;
-  const showingBest = !parsed.text && !category;
 
   return (
     <div className="-m-2 flex flex-col gap-2 p-2 lg:-m-3 lg:p-3 xl:h-[calc(100dvh-1.5rem)]">
@@ -255,7 +254,7 @@ export default function PosPage() {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[minmax(0,1fr)_480px]">
+      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[minmax(0,1fr)_minmax(500px,42%)]">
         {/* LEFT: find medicines */}
         <Card className="no-print flex min-h-0 flex-col">
           <div className="space-y-1.5 border-b border-line p-2.5">
@@ -285,7 +284,6 @@ export default function PosPage() {
                 <button className="shrink-0 text-xs font-medium text-amber underline" onClick={() => setAltFor(null)}>Back to search</button>
               </div>
             )}
-            {catalog?.ready && !altMed && showingBest && results.length > 0 && <p className="px-3 pb-1 pt-2 text-xs font-medium text-muted">{results.some((m) => m.pop > 0) ? 'Sold most often' : 'All medicines A to Z'}</p>}
             {catalog?.ready && !altMed && !results.length && (
               <div className="p-10 text-center text-muted">
                 {parsed.text ? <>No medicine matches <b className="text-ink">&ldquo;{parsed.text}&rdquo;</b>. Check the spelling, try the generic name, or scan the barcode.</> : 'No medicines in this category yet.'}
@@ -299,77 +297,85 @@ export default function PosPage() {
 
         {/* RIGHT: the bill */}
         <div className="flex min-h-0 flex-col gap-2">
-          <Card className="flex min-h-[140px] flex-1 flex-col">
+          <Card className="flex min-h-[170px] flex-1 flex-col">
             <div className="no-print flex items-center justify-between border-b border-line px-3 py-2">
               <p className="text-sm font-semibold">Bill <span className="ml-1 font-normal text-muted">{lines.length ? `${lines.length} item${lines.length > 1 ? 's' : ''}` : ''}</span></p>
               {lines.length > 0 && <button className="text-xs text-muted hover:text-danger" onClick={() => { if (confirm('Clear this bill?')) clearBill(); }}>Clear</button>}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
               {lines.length === 0 ? <p className="p-8 text-center text-sm text-muted">Nothing on the bill yet.<br />Scan or search a medicine on the left.</p> : (
+                <>
+                <div className="sticky top-0 z-10 flex justify-between border-b border-line bg-paper px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-muted"><span>Medicine, unit, quantity, rate</span><span>Amount</span></div>
                 <ul className="divide-y divide-line">
                   {lines.map((l) => <BillLine key={l.key} l={l} hot={l.key === lastKey} onChange={(p) => setLine(l.key, p)} onRemove={() => removeLine(l.key)} onAlt={() => setAltFor(l.id)} onDone={() => searchRef.current?.focus()} />)}
                 </ul>
+                </>
               )}
             </div>
           </Card>
 
-          <Card className="no-print space-y-2 p-2.5">
-            <CustomerPicker customer={customer} onChange={setCustomer} label="" placeholder="Customer (optional, needed for udhaar)" />
-            <div className="rounded-lg bg-pine-dark px-3 py-2 text-white">
-              <div className="num flex items-end justify-between">
-                <span className="text-sm text-white/70">Total</span>
-                <span className="text-2xl font-semibold leading-none tracking-tight">{money(total)}</span>
+          <Card className="no-print p-2.5">
+            {/* details can scroll on a short screen; the total and the Complete sale button never leave the bottom */}
+            <div className="max-h-[34vh] space-y-2 overflow-y-auto pr-0.5">
+              <CustomerPicker customer={customer} onChange={setCustomer} label="" placeholder="Customer (optional, needed for udhaar)" />
+              <div className="flex items-center gap-2">
+                <span className="w-10 text-sm font-medium">Cash</span>
+                <Input className="num h-9 flex-1 text-right text-base" type="number" min="0" value={pay.cash} onChange={(e) => setPay({ ...pay, cash: e.target.value })} placeholder={total ? `${total} (exact)` : '0'} aria-label="Cash received" />
               </div>
-              <div className="num mt-1.5 flex items-center justify-between gap-3 text-xs text-white/70">
-                <span>Subtotal {money(subtotal)}</span>
-                {can('sales:discount') && (
-                  <label className="flex items-center gap-1.5">Discount
-                    <input className="num h-7 w-14 rounded border border-white/30 bg-white/10 px-2 text-right text-white placeholder:text-white/40 focus:border-white focus:outline-none" value={discountText} onChange={(e) => setDiscountText(e.target.value)} placeholder="0" inputMode="decimal" aria-label="Discount percent" />
-                    <span>%</span>
-                    {disc > 0 && <span className="font-medium text-white">= {money(disc)}</span>}
-                  </label>
-                )}
+              <div className="flex flex-wrap items-center gap-1 pl-12">
+                {total > 0 && <button type="button" className="rounded border border-line bg-white px-2 py-0.5 text-xs font-medium hover:bg-mint" onClick={() => setPay({ ...NO_PAY, cash: String(total) })}>Exact</button>}
+                {cashButtons.map((v) => <button key={v} type="button" className="rounded border border-line bg-white px-2 py-0.5 text-xs font-medium hover:bg-mint" onClick={() => setPay({ ...pay, cash: String(v) })}>{v.toLocaleString()}</button>)}
+                <button type="button" className="ml-auto text-xs text-muted underline hover:text-ink" onClick={() => setMoreOpen((o) => !o)} aria-expanded={moreOpen || usingOther}>{moreOpen || usingOther ? 'Hide' : 'Card / Bank / Udhaar'}</button>
               </div>
-            </div>
+              {(moreOpen || usingOther) && (
+                <div className="grid grid-cols-3 gap-2">
+                  {[['card', 'Card'], ['bank_transfer', 'Bank'], ['credit', 'Udhaar']].map(([k, label]) => (
+                    <label key={k} className="block text-xs text-muted">{label}
+                      <Input className="num mt-0.5 h-8 text-right text-sm text-ink" type="number" min="0" value={pay[k]} onChange={(e) => setPay({ ...pay, [k]: e.target.value })} placeholder="0" />
+                    </label>
+                  ))}
+                </div>
+              )}
 
-            <div className="flex items-center gap-2">
-              <span className="w-10 text-sm font-medium">Cash</span>
-              <Input className="num h-9 flex-1 text-right text-base" type="number" min="0" value={pay.cash} onChange={(e) => setPay({ ...pay, cash: e.target.value })} placeholder={total ? `${total} (exact)` : '0'} aria-label="Cash received" />
+              {needsRx && (
+                <div className="space-y-1 rounded-md bg-amber-soft px-2 py-1.5 text-xs">
+                  <p className="font-medium text-amber">Rx medicines on this bill: prescription needed</p>
+                  {can('prescriptions:view') && <RxPicker value={rxLink} onChange={setRxLink} customer={customer} />}
+                  {!rxLink && <label className="flex items-start gap-1.5"><input type="checkbox" className="mt-0.5" checked={rx} onChange={(e) => setRx(e.target.checked)} /> I have checked the prescription for the Rx medicines.</label>}
+                </div>
+              )}
             </div>
-            <div className="flex flex-wrap items-center gap-1 pl-12">
-              {total > 0 && <button type="button" className="rounded border border-line bg-white px-2 py-0.5 text-xs font-medium hover:bg-mint" onClick={() => setPay({ ...NO_PAY, cash: String(total) })}>Exact</button>}
-              {cashButtons.map((v) => <button key={v} type="button" className="rounded border border-line bg-white px-2 py-0.5 text-xs font-medium hover:bg-mint" onClick={() => setPay({ ...pay, cash: String(v) })}>{v.toLocaleString()}</button>)}
-              <button type="button" className="ml-auto text-xs text-muted underline hover:text-ink" onClick={() => setMoreOpen((o) => !o)} aria-expanded={moreOpen || usingOther}>{moreOpen || usingOther ? 'Hide' : 'Card / Bank / Udhaar'}</button>
-            </div>
-            {(moreOpen || usingOther) && (
-              <div className="grid grid-cols-3 gap-2">
-                {[['card', 'Card'], ['bank_transfer', 'Bank'], ['credit', 'Udhaar']].map(([k, label]) => (
-                  <label key={k} className="block text-xs text-muted">{label}
-                    <Input className="num mt-0.5 h-8 text-right text-sm text-ink" type="number" min="0" value={pay[k]} onChange={(e) => setPay({ ...pay, [k]: e.target.value })} placeholder="0" />
-                  </label>
-                ))}
+            <div className="mt-2 space-y-2">
+              <div className="rounded-lg bg-pine-dark px-3 py-2 text-white">
+                <div className="num flex items-end justify-between">
+                  <span className="text-sm text-white/70">Total</span>
+                  <span className="text-2xl font-semibold leading-none tracking-tight">{money(total)}</span>
+                </div>
+                <div className="num mt-1.5 flex items-center justify-between gap-3 text-xs text-white/70">
+                  <span>Subtotal {money(subtotal)}</span>
+                  {can('sales:discount') && (
+                    <label className="flex items-center gap-1.5">Discount
+                      <input className="num h-7 w-14 rounded border border-white/30 bg-white/10 px-2 text-right text-white placeholder:text-white/40 focus:border-white focus:outline-none" value={discountText} onChange={(e) => setDiscountText(e.target.value)} placeholder="0" inputMode="decimal" aria-label="Discount percent" />
+                      <span>%</span>
+                      {disc > 0 && <span className="font-medium text-white">= {money(disc)}</span>}
+                    </label>
+                  )}
+                </div>
               </div>
-            )}
 
-            {needsRx && (
-              <div className="space-y-1.5 rounded-md bg-amber-soft p-2 text-sm">
-                <p className="font-medium text-amber">Prescription (Rx) medicines on this bill</p>
-                {can('prescriptions:view') && <RxPicker value={rxLink} onChange={setRxLink} customer={customer} />}
-                {!rxLink && <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={rx} onChange={(e) => setRx(e.target.checked)} /> I have checked the prescription for the Rx medicines.</label>}
-              </div>
-            )}
-            {discOver && <p className="text-sm font-medium text-danger">Your discount limit is {maxPct}% of the bill. Ask the owner for more.</p>}
-            {eff.credit > 0 && !customer && <p className="text-sm text-danger">Choose a customer to record udhaar.</p>}
-            {total > 0 && (remaining > 0 || change > 0) && (
-              <div className="num text-sm">
-                {remaining > 0 && <p className="font-medium text-danger">Still to pay: {money(remaining)}</p>}
-                {change > 0 && <p className="text-base font-semibold text-pine-dark">Change to give back: {money(change)}</p>}
-              </div>
-            )}
-            <ErrorNote error={error} />
-            <Button size="lg" className="w-full" disabled={!canPay} loading={busy} onClick={checkout}>
-              Complete sale{total ? ` - ${money(total)}` : ''} <span className="ml-1 hidden rounded bg-white/20 px-1.5 text-xs font-normal xl:inline">F9</span>
-            </Button>
+              {discOver && <p className="text-sm font-medium text-danger">Your discount limit is {maxPct}% of the bill. Ask the owner for more.</p>}
+              {eff.credit > 0 && !customer && <p className="text-sm text-danger">Choose a customer to record udhaar.</p>}
+              {total > 0 && (remaining > 0 || change > 0) && (
+                <div className="num text-sm">
+                  {remaining > 0 && <p className="font-medium text-danger">Still to pay: {money(remaining)}</p>}
+                  {change > 0 && <p className="text-base font-semibold text-pine-dark">Change to give back: {money(change)}</p>}
+                </div>
+              )}
+              <ErrorNote error={error} />
+              <Button size="lg" className="w-full" disabled={!canPay} loading={busy} onClick={checkout}>
+                Complete sale{total ? ` - ${money(total)}` : ''} <span className="ml-1 hidden rounded bg-white/20 px-1.5 text-xs font-normal xl:inline">F9</span>
+              </Button>
+            </div>
           </Card>
         </div>
       </div>
@@ -451,22 +457,29 @@ function BillLine({ l, hot, onChange, onRemove, onAlt, onDone }) {
   }
   const where = [locationText(l.med), l.med.storage === 'fridge' && 'Keep in fridge'].filter(Boolean).join(' | ');
   return (
-    <li className={`px-2.5 py-1.5 ${hot ? 'bg-mint/60' : ''}`}>
-      <div className="flex items-center gap-1.5">
-        <p className="min-w-0 flex-1 truncate text-[13px] font-medium" title={`${l.med.name} | ${money(l.unitPrice)} each`}>{l.med.name}{l.med.requiresPrescription && <span className="ml-1"><Badge tone="warn">Rx</Badge></span>}</p>
-        <Select value={l.unitType} onChange={(e) => onChange({ unitType: e.target.value })} className="h-7 w-[74px] px-1.5 text-xs" aria-label="Unit"><option value="box">Box</option><option value="strip">Strip</option><option value="unit">Unit</option></Select>
+    <li className={`px-2.5 py-2 ${hot ? 'bg-mint/60' : ''}`}>
+      {/* the whole medicine name is always shown, so it is clear exactly what was picked */}
+      <div className="flex items-start justify-between gap-3">
+        <p className="min-w-0 text-[13.5px] font-semibold leading-snug">{l.med.name}{l.med.requiresPrescription && <span className="ml-1.5 align-middle"><Badge tone="warn">Rx</Badge></span>}
+          {l.med.genericName && <span className="block text-[11px] font-normal text-muted">{l.med.genericName}{l.med.manufacturer ? ` | ${l.med.manufacturer}` : ''}</span>}</p>
+        <p className="num shrink-0 text-sm font-semibold">{money(l.total)}</p>
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <Select value={l.unitType} onChange={(e) => onChange({ unitType: e.target.value })} className="h-7 w-[78px] px-1.5 text-xs" aria-label="Unit"><option value="box">Box</option><option value="strip">Strip</option><option value="unit">Unit</option></Select>
         <Button variant="secondary" size="sm" className="h-7 w-7 px-0" onClick={() => onChange({ qty: Math.max(1, l.qty - 1) })} aria-label="Less"><Minus className="h-3.5 w-3.5" /></Button>
-        <Input id={`qty-${l.key}`} className="num h-7 w-11 px-1 text-center text-sm" type="number" min="1" value={l.qty}
+        <Input id={`qty-${l.key}`} className="num h-7 w-12 px-1 text-center text-sm" type="number" min="1" value={l.qty}
           onChange={(e) => onChange({ qty: Math.max(1, parseInt(e.target.value, 10) || 1) })}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onDone(); } }} aria-label="Quantity" />
         <Button variant="secondary" size="sm" className="h-7 w-7 px-0" onClick={() => onChange({ qty: l.qty + 1 })} aria-label="More"><Plus className="h-3.5 w-3.5" /></Button>
-        <p className="num w-[66px] shrink-0 text-right text-sm font-semibold">{money(l.total)}</p>
-        {l.med.genericName && <button className="rounded p-1 text-muted hover:bg-mint hover:text-ink" onClick={onAlt} title="Alternatives: other brands with the same generic name" aria-label="Alternatives"><ArrowLeftRight className="h-4 w-4" /></button>}
-        <button className="rounded p-1 text-muted hover:bg-danger-soft hover:text-danger" onClick={onRemove} aria-label="Remove"><Trash2 className="h-4 w-4" /></button>
+        <span className="num text-xs text-muted">x {money(l.unitPrice)} per {l.unitType}</span>
+        <span className="ml-auto flex items-center gap-0.5">
+          {l.med.genericName && <button className="rounded p-1 text-muted hover:bg-mint hover:text-ink" onClick={onAlt} title="Alternatives: other brands with the same generic name" aria-label="Alternatives"><ArrowLeftRight className="h-4 w-4" /></button>}
+          <button className="rounded p-1 text-muted hover:bg-danger-soft hover:text-danger" onClick={onRemove} aria-label="Remove"><Trash2 className="h-4 w-4" /></button>
+        </span>
       </div>
-      {where && <p className="text-[11px] text-pine-dark">{where}</p>}
-      {l.short && <p className="text-xs font-medium text-danger">Only {stockText(l.stock.display)} available{l.stock.expired ? ` (${l.stock.expired} expired units cannot be sold)` : ''}</p>}
-      {!l.unitPrice && <p className="text-xs font-medium text-danger">Price not set for this unit</p>}
+      {where && <p className="mt-0.5 text-[11px] text-pine-dark">{where}</p>}
+      {l.short && <p className="mt-0.5 text-xs font-medium text-danger">Only {stockText(l.stock.display)} available{l.stock.expired ? ` (${l.stock.expired} expired units cannot be sold)` : ''}</p>}
+      {!l.unitPrice && <p className="mt-0.5 text-xs font-medium text-danger">Price not set for this unit</p>}
     </li>
   );
 }
@@ -482,7 +495,7 @@ function RxPicker({ value, onChange, customer }) {
   if (value) return <div className="flex items-center justify-between rounded bg-white px-2 py-1"><span>{value.rxNo} - Dr. {value.doctorName}</span><button onClick={() => onChange(null)} aria-label="Unlink"><X className="h-4 w-4" /></button></div>;
   return (
     <div className="relative">
-      <Input className="h-9 bg-white" placeholder="Link a recorded prescription (doctor, patient or RX no.)" value={term} onChange={(e) => setTerm(e.target.value)} />
+      <Input className="h-8 bg-white text-xs" placeholder="Link a recorded prescription (doctor, patient or RX no.)" value={term} onChange={(e) => setTerm(e.target.value)} />
       {list.length > 0 && term && (
         <ul className="absolute z-20 mt-1 w-full rounded-md border border-line bg-white shadow-lg">
           {list.map((r) => <li key={r._id}><button type="button" className="flex w-full justify-between px-3 py-2 text-left hover:bg-mint" onClick={() => { onChange(r); setTerm(''); }}><span>{r.rxNo} | Dr. {r.doctorName}</span><span className="text-xs text-muted">{r.customerName}</span></button></li>)}

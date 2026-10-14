@@ -58,6 +58,33 @@ describe('menu and route guard', () => {
   });
 });
 
+describe('sidebar', () => {
+  beforeEach(() => { localStorage.clear(); });
+  it('the 3-bar button folds the menu to an icon strip; the strip\'s 3-bar button opens the full menu over the page; the choice is remembered', async () => {
+    role = 'owner'; mockPath = '/pos';
+    const user = userEvent.setup();
+    shell(<p>PAGE</p>);
+    await screen.findByText('PAGE');
+    expect(screen.getByText('Finance & profit')).toBeInTheDocument();           // full menu with names
+    await user.click(screen.getByRole('button', { name: /Fold menu/ }));
+    expect(screen.queryByText('Finance & profit')).toBeNull();                  // names are gone, only icons remain
+    expect(screen.getByRole('link', { name: 'Finance & profit' })).toBeInTheDocument(); // icons keep their name for hover and screen readers
+    expect(localStorage.getItem('wp_sidebar_collapsed')).toBe('1');
+    const railButton = screen.getAllByRole('button', { name: 'Open menu' }).find((b) => b.closest('aside'));
+    await user.click(railButton);
+    expect(await screen.findByText('Finance & profit')).toBeInTheDocument();    // the full menu slides over the page
+    expect(screen.getByText('PAGE')).toBeInTheDocument();
+  });
+  it('a folded menu stays folded on the next visit', async () => {
+    localStorage.setItem('wp_sidebar_collapsed', '1');
+    role = 'owner';
+    shell(<p>PAGE</p>);
+    await screen.findByText('PAGE'); // signed in and the page is showing
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Fold menu/ })).toBeNull()); // the saved choice is read right after the first paint
+    expect(screen.getAllByRole('button', { name: 'Open menu' }).some((b) => b.closest('aside'))).toBe(true);
+  });
+});
+
 describe('counter home (what a cashier sees instead of the owner dashboard)', () => {
   it('shows their own day and no profit, purchases or stock value', async () => {
     render(<AuthProvider><DashboardPage /></AuthProvider>);

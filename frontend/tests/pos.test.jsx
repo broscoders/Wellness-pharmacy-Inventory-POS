@@ -42,7 +42,7 @@ function installFetch() {
 async function open() {
   const user = userEvent.setup();
   render(<AuthProvider><CatalogProvider><PosPage /></CatalogProvider></AuthProvider>);
-  await screen.findByText(/4 medicines ready/);
+  await screen.findByText(/\d+ medicines ready/);
   return user;
 }
 const searchBox = () => screen.getByLabelText('Search medicine');
@@ -51,10 +51,11 @@ const searchCalls = () => calls.filter((c) => c.includes('/api/medicines') && !c
 beforeEach(async () => { await clearCache(); failNextSale = false; installFetch(); });
 
 describe('POS counter', () => {
-  it('shows the whole medicine list at once, best sellers first', async () => {
+  it('shows the whole medicine list at once, A to Z (no best-seller reordering)', async () => {
     await open();
     const list = screen.getByRole('listbox');
-    expect(within(list).getAllByRole('option')[0]).toHaveTextContent('Panadol 500mg');
+    expect(within(list).getAllByRole('option')[0]).toHaveTextContent('Augmentin 625mg');
+    expect(screen.queryByText(/Sold most often/)).toBeNull();
     expect(within(list).getAllByRole('option')).toHaveLength(4);
   });
 
@@ -118,7 +119,8 @@ describe('POS counter', () => {
     await waitFor(() => expect(screen.queryByText('Sale completed')).toBeNull());
     expect(screen.getByText(/Nothing on the bill yet/)).toBeInTheDocument();
     // 1000 units - 2 strips (20 units) = 980 units = 9 strips + 8 units + ... shown as box/strip/unit
-    expect(within(screen.getByRole('listbox')).getAllByRole('option')[0]).toHaveTextContent('9 box, 8 strip');
+    const panadol = within(screen.getByRole('listbox')).getAllByRole('option').find((o) => /Panadol/.test(o.textContent));
+    expect(panadol).toHaveTextContent('9 box, 8 strip');
   });
 
   it('a retry after a network failure sends the SAME bill key (no double billing)', async () => {
@@ -153,7 +155,7 @@ describe('POS counter', () => {
     expect(screen.getByText(/Change to give back/)).toHaveTextContent('Rs 75');
     await user.clear(screen.getByLabelText('Cash received'));
     await user.click(screen.getByRole('button', { name: 'Card / Bank / Udhaar' })); // these boxes are tucked away until needed
-    await user.type(screen.getAllByPlaceholderText('0').at(-1), '25'); // udhaar box
+    await user.type(screen.getByLabelText('Udhaar'), '25');
     expect(screen.getByText(/Choose a customer to record udhaar/)).toBeTruthy();
     expect(screen.getByRole('button', { name: /Complete sale/ })).toBeDisabled();
   });
@@ -191,7 +193,7 @@ describe('POS counter', () => {
     expect(screen.queryByText('Bank')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Card / Bank / Udhaar' }));
     expect(screen.getByText('Bank')).toBeInTheDocument();
-    await user.type(screen.getAllByPlaceholderText('0').at(-2), '10'); // bank
+    await user.type(screen.getByLabelText('Bank'), '10');
     expect(screen.getByRole('button', { name: 'Hide' })).toBeInTheDocument();
   });
 
@@ -230,6 +232,26 @@ describe('substitutes', () => {
       expect(screen.getByLabelText('Quantity')).toHaveValue(1);
       expect(screen.queryByText(/is not available/)).toBeNull();
     } finally { CATALOG.length = 4; CATALOG[2].genericName = ''; }
+  });
+});
+
+describe('bill table', () => {
+  it('shows the whole medicine name with its unit, quantity, rate and amount', async () => {
+    const user = userEvent.setup();
+    CATALOG.push(med('m9', 'Dexamethasone 4mg Injection With A Very Long Name 100 Vials Pack', { genericName: 'Dexamethasone', manufacturer: 'Generic Pharma' }));
+    try {
+      await open();
+      await user.type(searchBox(), 'dexameth{Enter}');
+      expect(screen.getByText('Medicine, unit, quantity, rate')).toBeInTheDocument();
+      const name = screen.getAllByText(/Very Long Name 100 Vials Pack/).find((el) => el.closest('li') && !el.closest('[role="listbox"]'));
+      expect(name).toBeTruthy();
+      expect(name.className).not.toMatch(/truncate/); // never cut short on the bill
+      const line = name.closest('li');
+      expect(line).toHaveTextContent('Dexamethasone | Generic Pharma');
+      expect(line).toHaveTextContent('x Rs 25 per strip');
+      expect(within(line).getByLabelText('Unit')).toHaveValue('strip');
+      expect(within(line).getByLabelText('Quantity')).toHaveValue(1);
+    } finally { CATALOG.length = 4; }
   });
 });
 

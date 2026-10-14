@@ -21,7 +21,7 @@ const items = [
 ];
 const names = (r) => r.map((i) => i.name);
 
-test('prefix of the name finds it, best seller first', () => {
+test('prefix of the name finds it, in name order', () => {
   assert.deepEqual(names(search(items, 'pana')).slice(0, 2), ['Panadol 500mg', 'Panadol Extra']);
 });
 test('generic name and manufacturer are searchable', () => {
@@ -56,8 +56,10 @@ test('one small typo is forgiven only when nothing else matches', () => {
   assert.equal(search(items, 'brufne')[0].name, 'Brufen 400mg');      // swapped letters
   assert.deepEqual(search(items, 'xxxxyyyy'), []);
 });
-test('empty search lists best sellers first; category filter works', () => {
-  assert.equal(search(items, '')[0].name, 'Panadol 500mg');
+test('empty search is the plain A-Z list (what sold most does not reorder it); category filter works', () => {
+  assert.deepEqual(names(search(items, '')).slice(0, 3), ['Augmentin 625mg', 'Brufen 400mg', 'Calpol Syrup 120ml']);
+  const busy = items.map((i) => (i._id === '7' ? { ...i, pop: 999 } : i));
+  assert.equal(search(busy, '')[0].name, 'Augmentin 625mg'); // Disprin sells most, but is not pushed to the top
   const withCat = items.map((i) => (i._id === '4' ? { ...i, category: 'abx' } : i));
   assert.deepEqual(names(search(withCat, '', { category: 'abx' })), ['Augmentin 625mg']);
 });

@@ -58,6 +58,10 @@ function Shell({ children }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pwd, setPwd] = useState(false);
+  // Desktop: the menu can be folded into a narrow icon strip to give the screen more room (remembered on this computer).
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => { try { setCollapsed(localStorage.getItem('wp_sidebar_collapsed') === '1'); } catch { /* storage blocked */ } }, []);
+  const fold = (v) => { setCollapsed(v); try { localStorage.setItem('wp_sidebar_collapsed', v ? '1' : '0'); } catch { /* storage blocked */ } };
 
   useEffect(() => { if (!loading && !user) router.replace('/login'); }, [loading, user, router]);
   useEffect(() => setOpen(false), [pathname]);
@@ -86,9 +90,22 @@ function Shell({ children }) {
   );
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[240px_1fr]">
+    <div className={`min-h-screen lg:grid ${collapsed ? 'lg:grid-cols-[56px_1fr]' : 'lg:grid-cols-[240px_1fr]'}`}>
+      {collapsed ? (
+        // folded menu: icons only. The 3-bar button opens the full menu over the page, like on a phone.
+        <aside className="no-print hidden flex-col items-center border-r border-line bg-white lg:flex">
+          <button onClick={() => setOpen(true)} className="mt-3 rounded-md p-2 text-pine-dark hover:bg-mint" aria-label="Open menu" title="Open menu"><Menu className="h-6 w-6" /></button>
+          <nav className="mt-2 flex flex-1 flex-col items-center gap-1 overflow-y-auto py-2" aria-label="Menu icons">
+            {groups.flatMap((g) => g.items).map(({ href, label, icon: Icon }) => {
+              const active = pathname === href || pathname.startsWith(`${href}/`);
+              return <Link key={href} href={href} title={label} aria-label={label} className={`rounded-md p-2 ${active ? 'bg-pine text-white' : 'text-ink hover:bg-mint'}`}><Icon className="h-[18px] w-[18px]" /></Link>;
+            })}
+          </nav>
+          <button onClick={logout} className="mb-3 rounded-md p-2 text-muted hover:bg-mint hover:text-ink" aria-label="Sign out" title="Sign out"><LogOut className="h-[18px] w-[18px]" /></button>
+        </aside>
+      ) : (
       <aside className="no-print hidden border-r border-line bg-white lg:flex lg:flex-col">
-        <div className="flex h-14 items-center gap-2 border-b border-line px-5 font-semibold text-pine-dark"><Pill className="h-5 w-5 shrink-0" /> <span className="truncate">{settings.shopName}</span></div>
+        <div className="flex h-14 items-center gap-2 border-b border-line pl-2 pr-5 font-semibold text-pine-dark"><button onClick={() => fold(true)} className="rounded-md p-2 text-pine-dark hover:bg-mint" aria-label="Fold menu" title="Fold menu to give the screen more room"><Menu className="h-5 w-5" /></button><span className="truncate">{settings.shopName}</span></div>
         {nav}
         <div className="border-t border-line p-3">
           <div className="px-3 pb-2"><p className="truncate font-medium">{user.name}</p><p className="text-xs capitalize text-muted">{user.role}</p></div>
@@ -96,14 +113,15 @@ function Shell({ children }) {
           <button onClick={logout} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-muted hover:bg-mint hover:text-ink"><LogOut className="h-[18px] w-[18px]" /> Sign out</button>
         </div>
       </aside>
+      )}
 
       <div className="no-print flex h-14 items-center justify-between border-b border-line bg-white px-4 lg:hidden">
         <span className="flex items-center gap-2 font-semibold text-pine-dark"><Pill className="h-5 w-5" /> {settings.shopName}</span>
         <button onClick={() => setOpen(true)} aria-label="Open menu"><Menu className="h-6 w-6" /></button>
       </div>
       {open && (
-        <div className="no-print fixed inset-0 z-40 bg-ink/40 lg:hidden" onClick={() => setOpen(false)}>
-          <aside className="flex h-full w-64 flex-col bg-white" onClick={(e) => e.stopPropagation()}>
+        <div className="no-print fixed inset-0 z-40 bg-ink/40" onClick={() => setOpen(false)}>
+          <aside className="flex h-full w-64 flex-col bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex h-14 items-center justify-between border-b border-line px-5 font-semibold text-pine-dark">Menu <button onClick={() => setOpen(false)}><X className="h-5 w-5" /></button></div>
             {nav}
             <button onClick={() => { setOpen(false); setPwd(true); }} className="mx-3 flex items-center gap-3 rounded-md px-3 py-2 text-muted hover:bg-mint"><KeyRound className="h-[18px] w-[18px]" /> Change password</button>
