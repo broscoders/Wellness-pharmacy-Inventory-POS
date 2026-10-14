@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useCatalog } from '@/context/CatalogContext';
 import { dateOnly, dateTime, money, stockText } from '@/lib/format';
-import { baseQtyOfType, round2, sellPrice } from '@/lib/units';
+import { baseQtyOfType, fromBase, round2, sellPrice } from '@/lib/units';
 import { defaultUnitFor, locationText, parseDiscount, parseQuery, stockOf, unitChoices, unitLabel, unitName } from '@/lib/search';
 import { beep } from '@/lib/beep';
 import { receiptMessage, waLink } from '@/lib/whatsapp';
@@ -37,6 +37,7 @@ export default function PosPage() {
   const [active, setActive] = useState(0);
   const [cart, setCart] = useState([]); // { key, id, unitType, qty, name }
   const [lastKey, setLastKey] = useState(null);
+  const [ask, setAsk] = useState(null); // the keyboard question "how many?" for the medicine just chosen: { med, stages }
   const [rowQty, setRowQty] = useState({}); // how many the cashier set on a result row before pressing Box / Strip / Tablet
   const [altFor, setAltFor] = useState(null); // medicine id whose alternatives are shown instead of the search results
   const [saleType, setSaleType] = useState('retail');
@@ -73,7 +74,7 @@ export default function PosPage() {
   const altMed = altFor ? catalog?.get(altFor) : null;
   const alts = useMemo(() => (altMed ? catalog.substitutes(altMed) : []), [catalog, altMed]);
   const shown = altMed ? alts : results; // what the list on the left currently contains
-  useEffect(() => { setActive(0); setAltFor(null); setRowQty({}); }, [parsed.text]);
+  useEffect(() => { setActive(0); setAltFor(null); setRowQty({}); setAsk(null); }, [parsed.text]);
   const qtyOf = (m) => rowQty[m._id] ?? parsed.qty; // a typed 3* prefix pre-fills every row
   useEffect(() => { setActive(0); }, [altFor]);
   useEffect(() => { listRef.current?.querySelector(`[data-i="${active}"]`)?.scrollIntoView({ block: 'nearest' }); }, [active]);
@@ -104,9 +105,23 @@ export default function PosPage() {
     return true;
   }
 
+  // Enter on a medicine: ask HOW MANY, one unit at a time (tablet, then strip, then box). Type a number or press Up for +1,
+  // Enter confirms; leaving 0 and pressing Enter moves on to the next unit.
+  function startAsk(med) {
+    const stock = stockOf(med);
+    if (stock.isOut) {
+      fail(`${med.name}: ${stock.onlyExpired ? 'only expired stock is left, it cannot be sold' : 'out of stock'}`);
+      if (med.genericName) setAltFor(med._id);
+      return;
+    }
+    const stages = [...unitChoices(med)].reverse().filter((u) => sellPrice(med, saleType, u) > 0); // smallest first: goli, patta, box
+    if (!stages.length) { fail(`${med.name}: no price is set`); return; }
+    setError(''); setAsk({ med, stages });
+  }
+
   // Up / Down choose a row, Enter adds the chosen row (or what was typed / scanned), Escape clears.
   // Returns true when the key was used. `box` is the text in the search box right now.
-  function listKey(key, box) {
+  function listKey(key, box, shift = false) {
     if (key === 'ArrowDown') { setActive((i) => Math.min(i + 1, Math.max(shown.length - 1, 0))); return true; }
     if (key === 'ArrowUp') { setActive((i) => Math.max(i - 1, 0)); return true; }
     if (key === 'Escape') { setTerm(''); setError(''); setAltFor(null); return true; }
@@ -115,19 +130,23 @@ export default function PosPage() {
     if (!q.text) {
       // nothing typed: Enter adds the row that is highlighted in the list (so Up/Down + Enter works with no typing at all)
       const row = shown[active];
-      if (row) addToCart(row, qtyOf(row));
+      if (row) { if (shift) addToCart(row, qtyOf(row)); else startAsk(row); }
       return true;
     }
     const byCode = catalog.byBarcode(q.text);
     if (byCode) { addToCart(byCode, q.qty, q.unit); return true; }
     const pick = q.text === parsed.text ? shown[active] : catalog.search(q.text, { limit: 1 })[0];
-    if (pick) addToCart(pick, q.text === parsed.text ? qtyOf(pick) : q.qty, q.unit);
+    // "10t*pana" already says how many and which unit, and Shift+Enter means "the usual strip, right now": add at once.
+    // A plain Enter asks the questions.
+    const typedHowMany = q.text !== String(box).trim();
+    if (pick && (typedHowMany || shift)) addToCart(pick, typedHowMany ? q.qty : qtyOf(pick), q.unit);
+    else if (pick) startAsk(pick);
     else { fail(`No medicine found for "${q.text}"`); searchRef.current?.select(); }
     return true;
   }
   function onSearchKey(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return; // Ctrl+Enter completes the sale (handled for the whole page below)
-    if (listKey(e.key, e.currentTarget.value)) e.preventDefault();
+    if (listKey(e.key, e.currentTarget.value, e.shiftKey)) e.preventDefault();
   }
   // A mouse that is just resting over the list must not steal the highlight when the list scrolls under it:
   // only a real movement of the pointer moves the highlight.
@@ -304,33 +323,42 @@ export default function PosPage() {
                 onChange={(e) => setTerm(e.target.value)} onKeyDown={onSearchKey} aria-label="Search medicine" />
               {(parsed.qty > 1 || parsed.unit) && parsed.text && <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded bg-mint px-2 py-0.5 text-xs font-semibold text-pine-dark">Qty {parsed.qty}{parsed.unit ? ` ${parsed.unit === 'unit' ? 'loose' : parsed.unit}` : ''}</span>}
             </div>
-            <p className="hidden truncate text-[11px] text-muted xl:block">Type a name or scan &middot; set how many, click <b>Box</b> / <b>Strip</b> / <b>Tablet</b> (or <Kbd>Enter</Kbd> for strip) &middot; <Kbd>Up</Kbd><Kbd>Down</Kbd> choose &middot; <b>10t*pana</b> = 10 tablets &middot; <Kbd>F9</Kbd> or <Kbd>Ctrl+Enter</Kbd> complete</p>
+            <p className="hidden truncate text-[11px] text-muted xl:block"><Kbd>Enter</Kbd> on a medicine asks how many: <b>goli</b>, then <b>patta</b>, then <b>box</b> (type a number or <Kbd>Up</Kbd> = +1; <b>0</b> + <Kbd>Enter</Kbd> = next) &middot; <Kbd>Shift+Enter</Kbd> = 1 strip now &middot; <Kbd>F9</Kbd> or <Kbd>Ctrl+Enter</Kbd> complete</p>
           </div>
 
           <div ref={listRef} className="max-h-[46vh] min-h-0 flex-1 overflow-y-auto xl:max-h-none" role="listbox" aria-label="Medicines">
-            {catalog?.loading && <p className="p-10 text-center text-muted">Loading the medicine list...</p>}
-            {catalog?.status.state === 'error' && !catalog.count && (
-              <div className="p-10 text-center"><p className="font-medium text-danger">Could not load medicines</p><p className="mt-1 text-sm text-muted">{catalog.status.error}</p><Button className="mt-3" onClick={() => catalog.refresh()}>Try again</Button></div>
+            {ask ? (
+              <AskQty med={ask.med} stages={ask.stages} saleType={saleType}
+                available={Math.max(0, stockOf(ask.med).sellable - lines.filter((l) => l.id === ask.med._id).reduce((n, l) => n + l.needBase, 0))}
+                onAdd={(unit, n) => { addToCart(ask.med, n, unit); setAsk(null); }}
+                onCancel={() => { setAsk(null); searchRef.current?.focus(); searchRef.current?.select(); }} />
+            ) : (
+              <>
+                {catalog?.loading && <p className="p-10 text-center text-muted">Loading the medicine list...</p>}
+                {catalog?.status.state === 'error' && !catalog.count && (
+                  <div className="p-10 text-center"><p className="font-medium text-danger">Could not load medicines</p><p className="mt-1 text-sm text-muted">{catalog.status.error}</p><Button className="mt-3" onClick={() => catalog.refresh()}>Try again</Button></div>
+                )}
+                {altMed && (
+                  <div className="flex items-start justify-between gap-3 border-b border-amber/30 bg-amber-soft px-3 py-2 text-sm">
+                    <p><b>{altMed.name}</b> is not available. {alts.length ? <>Same generic (<b>{altMed.genericName}</b>), in stock. The pharmacist should confirm the substitute with the patient.</> : <>No other brand with <b>{altMed.genericName}</b> is in stock.</>}</p>
+                    <button className="shrink-0 text-xs font-medium text-amber underline" onClick={() => setAltFor(null)}>Back to search</button>
+                  </div>
+                )}
+                {catalog?.ready && !altMed && !parsed.text && (
+                  <div className="flex flex-col items-center px-6 py-14 text-center text-muted">
+                    <Search className="mb-3 h-10 w-10 text-line" />
+                    <p className="text-base font-medium text-ink">Type a medicine name or scan its barcode</p>
+                    <p className="mt-1 max-w-sm text-sm">Only the medicines you search for are shown. Press <b>Enter</b> on the medicine you want: it asks how many <b>goli</b>, then how many <b>patta</b>, then how many <b>box</b>. Or press the Box / Strip / Tablet button with the mouse.</p>
+                  </div>
+                )}
+                {catalog?.ready && !altMed && parsed.text && !results.length && (
+                  <div className="p-10 text-center text-muted">No medicine matches <b className="text-ink">&ldquo;{parsed.text}&rdquo;</b>. Check the spelling, try the generic name, or scan the barcode.</div>
+                )}
+                <ul>
+                  {shown.map((m, i) => <MedicineRow key={m._id} med={m} i={i} on={i === active} saleType={saleType} sameStrength={altMed ? m.sameStrength : undefined} qty={qtyOf(m)} onQty={(v) => setRowQty((r) => ({ ...r, [m._id]: v }))} onPick={(unit, quick) => ((unit || quick) ? addToCart(m, qtyOf(m), unit) : startAsk(m))} onHover={hoverRow(i)} />)}
+                </ul>
+              </>
             )}
-            {altMed && (
-              <div className="flex items-start justify-between gap-3 border-b border-amber/30 bg-amber-soft px-3 py-2 text-sm">
-                <p><b>{altMed.name}</b> is not available. {alts.length ? <>Same generic (<b>{altMed.genericName}</b>), in stock. The pharmacist should confirm the substitute with the patient.</> : <>No other brand with <b>{altMed.genericName}</b> is in stock.</>}</p>
-                <button className="shrink-0 text-xs font-medium text-amber underline" onClick={() => setAltFor(null)}>Back to search</button>
-              </div>
-            )}
-            {catalog?.ready && !altMed && !parsed.text && (
-              <div className="flex flex-col items-center px-6 py-14 text-center text-muted">
-                <Search className="mb-3 h-10 w-10 text-line" />
-                <p className="text-base font-medium text-ink">Type a medicine name or scan its barcode</p>
-                <p className="mt-1 max-w-sm text-sm">Only the medicines you search for are shown. Set how many (1, 2, 3...), then press <b>Box</b>, <b>Strip (patta)</b> or <b>Tablet (goli)</b> on the right of the medicine: the price follows that unit.</p>
-              </div>
-            )}
-            {catalog?.ready && !altMed && parsed.text && !results.length && (
-              <div className="p-10 text-center text-muted">No medicine matches <b className="text-ink">&ldquo;{parsed.text}&rdquo;</b>. Check the spelling, try the generic name, or scan the barcode.</div>
-            )}
-            <ul>
-              {shown.map((m, i) => <MedicineRow key={m._id} med={m} i={i} on={i === active} saleType={saleType} sameStrength={altMed ? m.sameStrength : undefined} qty={qtyOf(m)} onQty={(v) => setRowQty((r) => ({ ...r, [m._id]: v }))} onPick={(unit) => addToCart(m, qtyOf(m), unit)} onHover={hoverRow(i)} />)}
-            </ul>
           </div>
         </Card>
 
@@ -450,6 +478,58 @@ export default function PosPage() {
   );
 }
 
+// The keyboard question after Enter on a medicine. One unit at a time, smallest first (goli, patta, box):
+//   type a number, or Up = +1 / Down = -1;  Enter with a number adds it;  Enter with 0 moves to the next unit;  Esc cancels;
+//   Left / Right go back / forward a unit.
+function AskQty({ med, stages, saleType, available, onAdd, onCancel }) {
+  const [i, setI] = useState(0);
+  const [text, setText] = useState('');
+  const [msg, setMsg] = useState('');
+  const ref = useRef(null);
+  const unit = stages[i];
+  const n = parseInt(text, 10) || 0;
+  const price = sellPrice(med, saleType, unit);
+  useEffect(() => { ref.current?.focus(); }, [i]);
+  const goTo = (k) => { if (k < 0 || k >= stages.length) return false; setI(k); setText(''); setMsg(''); return true; };
+  function onKey(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return; // Ctrl+Enter / function keys still reach the page
+    if (e.key === 'ArrowUp') { e.preventDefault(); setText(String(n + 1)); setMsg(''); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); setText(String(Math.max(0, n - 1))); setMsg(''); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(i - 1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); goTo(i + 1); }
+    else if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (n === 0) { if (!goTo(i + 1)) onCancel(); return; }              // nothing here: ask about the next unit
+      const need = n * baseQtyOfType(med, unit);
+      if (need > available) { setMsg(`Only ${stockText(fromBase(med, available)) || '0'} available`); return; }
+      onAdd(unit, n);
+    }
+  }
+  return (
+    <div className="p-4" data-testid="ask-qty">
+      <p className="text-lg font-semibold">{med.name}</p>
+      <p className="text-xs text-muted">{[med.genericName, med.manufacturer].filter(Boolean).join(' | ')}{locationText(med) ? ` | ${locationText(med)}` : ''}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-label="Units">
+        {stages.map((u, k) => (
+          <span key={u} className={`rounded-full border px-3 py-1 text-xs font-medium ${k === i ? 'border-pine bg-pine text-white' : k < i ? 'border-line bg-paper text-muted line-through' : 'border-line bg-white text-muted'}`}>{unitName(med, u)}</span>
+        ))}
+      </div>
+      <label className="mt-4 block text-base font-medium" htmlFor="ask-qty-input">How many {unitName(med, unit)}?</label>
+      <div className="mt-2 flex items-center gap-3">
+        <input id="ask-qty-input" ref={ref} className="num h-14 w-36 rounded-lg border-2 border-pine px-3 text-center text-3xl font-semibold focus:outline-none" inputMode="numeric" autoComplete="off" placeholder="0" value={text}
+          onChange={(e) => { setText(e.target.value.replace(/\D/g, '').slice(0, 4)); setMsg(''); }} onKeyDown={onKey} aria-label={`How many ${unitName(med, unit)}`} />
+        <div className="num text-sm text-muted">
+          <p>1 {unitLabel(med, unit).toLowerCase()} = <b className="text-ink">{money(price)}</b></p>
+          {n > 0 && <p className="text-base font-semibold text-pine-dark">{n} x {money(price)} = {money(price * n)}</p>}
+        </div>
+      </div>
+      {msg && <p className="mt-2 text-sm font-medium text-danger" role="alert">{msg}</p>}
+      <p className="mt-4 text-xs text-muted"><Kbd>Up</Kbd> +1 &middot; <Kbd>Down</Kbd> -1 &middot; <Kbd>Enter</Kbd> add &middot; leave <b>0</b> and press <Kbd>Enter</Kbd> for the next unit{i + 1 < stages.length ? ` (${unitName(med, stages[i + 1])})` : ' (nothing is added)'} &middot; <Kbd>Left</Kbd>/<Kbd>Right</Kbd> change unit &middot; <Kbd>Esc</Kbd> cancel</p>
+    </div>
+  );
+}
+
 // Shows what is being typed; only a whole number of 1 or more is passed on, and the box shows the real value again when left.
 function QtyBox({ value, onChange, ...rest }) {
   const [text, setText] = useState(String(value));
@@ -488,7 +568,7 @@ function MedicineRow({ med, i, on, saleType, sameStrength, qty, onQty, onPick, o
         <div className="flex shrink-0 items-center gap-0.5 self-center" title="How many to add">
           <button type="button" className="h-7 w-6 rounded border border-line bg-white text-sm hover:bg-mint" onClick={() => onQty(Math.max(1, qty - 1))} aria-label={`Fewer ${med.name}`}>-</button>
           <QtyBox className="num h-7 w-10 px-1 text-center text-sm" value={qty} aria-label={`Quantity to add of ${med.name}`}
-            onChange={onQty} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onPick(); } }} />
+            onChange={onQty} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onPick(undefined, true); } }} />
           <button type="button" className="h-7 w-6 rounded border border-line bg-white text-sm hover:bg-mint" onClick={() => onQty(qty + 1)} aria-label={`More ${med.name}`}>+</button>
         </div>
         <div className="flex shrink-0 items-center gap-1.5" role="group" aria-label={`Choose unit for ${med.name}`}>

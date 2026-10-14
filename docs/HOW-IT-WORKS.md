@@ -15,14 +15,16 @@ The server still has the last word: when a bill is completed, the server re-chec
 
 ## Screen space on a small laptop
 - The 3-bar button at the top of the menu folds it into a thin icon strip (hover an icon to see its name). The 3-bar button on the strip opens the full menu over the page, like on a phone. The choice is remembered on that computer.
-- The POS does **not** list all medicines. The left side is empty until you type a name or scan a barcode, and then it shows only what matches. Each result has a small quantity box (1, 2, 3...) and a price button per unit: **Box**, **Strip (patta)** and **Tablet (goli)** (a single bottle or tube only shows **Unit**). Set how many, then press the unit you need: that many of that unit go on the bill at the unit's own price (for example 2 x Tablet = 2 x the price of one goli). Clicking the name or pressing Enter gives the usual unit (strip). To give 10 tablets in one go type `10t*pana` (`2s*pana` = 2 strips, `1b*pana` = 1 box). The bill shows the whole medicine name, its generic name and maker, the unit, quantity, rate and amount.
+- The POS does **not** list all medicines. The left side is empty until you type a name or scan a barcode, and then it shows only what matches. With the mouse, each result has a small quantity box (1, 2, 3...) and a price button per unit: **Box**, **Strip (patta)** and **Tablet (goli)** (a single bottle or tube only shows **Unit**). Set how many, then press the unit you need: that many of that unit go on the bill at the unit's own price (for example 2 x Tablet = 2 x the price of one goli). Clicking the name or pressing Enter gives the usual unit (strip). To give 10 tablets in one go type `10t*pana` (`2s*pana` = 2 strips, `1b*pana` = 1 box). The bill shows the whole medicine name, its generic name and maker, the unit, quantity, rate and amount.
 - The Total and the Complete sale button stay at the bottom; if the screen is short, the customer, cash and prescription part scrolls inside its own box. Browser zoom 90% (Ctrl and minus) shows even more.
 
 ## Counter shortcuts
 | Key | What it does |
 |---|---|
-| Type / scan, then **Enter** | Add the highlighted medicine as a strip (scanner: exact barcode). Click Box / Strip / Tablet on the row to give another unit |
-| **Up / Down**, then **Enter** | Choose a row in the list and add it. No typing needed; works even after you clicked a button or a category |
+| Type a name, **Enter** | Choose the highlighted medicine. The screen then asks **"How many Tablet (goli)?"**: type a number (10) or press **Up** for +1, then **Enter** to add it. Leave **0** and press **Enter** to be asked **"How many Strip (patta)?"**, and again **Enter** with 0 for **"How many Box?"** (1, 2, 3...). **Left / Right** go back and forward a unit, **Esc** cancels. It will not accept more than the shop has |
+| **Shift+Enter** | Skip the questions: add one usual strip right now |
+| Barcode scanner | A scan adds the medicine at once (one strip) |
+| **Up / Down**, then **Enter** | Move through the results and choose one (then answer the questions above). Works even after you clicked a button |
 | Just start typing | The letters go to the search box from anywhere on the POS |
 | `3*pana` then Enter | Add 3 of the first match. `10t*pana` = 10 tablets, `2s*pana` = 2 strips, `1b*pana` = 1 box |
 | **F2** | Jump back to the search box |
