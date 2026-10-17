@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ExternalLink, FileUp, Plus, Search, Trash2 } from 'lucide-react';
+import { ExternalLink, Plus, Search, Trash2 } from 'lucide-react';
 import { api, apiBlob, apiUpload } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { dateOnly, dateTime, money } from '@/lib/format';

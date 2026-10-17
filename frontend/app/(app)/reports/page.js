@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
 import { api } from '@/lib/api';
 import { downloadCsv } from '@/lib/csv';
-import { money, stockText, dateOnly } from '@/lib/format';
+import { money, stockText } from '@/lib/format';
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, PageHeader, Select, Spinner, Table } from '@/components/ui';
 import { BarList } from '@/components/Charts';
 

@@ -31,7 +31,8 @@ const medicineSchema = new mongoose.Schema(
     storage: { type: String, enum: ['room', 'cool', 'fridge'], default: 'room' }, // fridge items must never be left out
     mrp: { type: Number, min: 0, default: 0 }, // printed maximum retail price per BOX; selling above it is not allowed
 
-    minStockLevel: { type: Number, min: 0, default: 0 }, // in base units
+    minStockLevel: { type: Number, min: 0, default: 0 }, // in base units: below this the medicine is "low" and is put on the reorder list
+    maxStockLevel: { type: Number, min: 0, default: 0 }, // in base units: reorders top up to this level; stock above it is "over stock". 0 = not set (twice the minimum is used)
     requiresPrescription: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
   },

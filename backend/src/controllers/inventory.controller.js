@@ -194,7 +194,7 @@ const summary = asyncHandler(async (req, res) => {
 });
 
 // Shopping list: everything low or out of stock, grouped by the supplier it is normally bought from.
-// Suggested quantity = enough to reach TWICE the minimum level, at least one full box, rounded up to whole boxes.
+// Suggested quantity = enough to reach the maximum level (or twice the minimum if no maximum is set), at least one full box, in whole boxes.
 const reorder = asyncHandler(async (req, res) => {
   const { data } = await getAlerts();
   const rows = [...data.outOfStock, ...data.lowStock];

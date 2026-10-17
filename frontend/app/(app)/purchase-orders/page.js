@@ -75,7 +75,7 @@ function AutoOrder({ onClose, onCreated }) {
   return (
     <Modal open onClose={onClose} title="Order everything that is low or out of stock" width="max-w-md" footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={go} loading={busy} disabled={!supplier}>Create draft order</Button></>}>
       <ErrorNote error={err} />
-      <p className="mb-3 text-sm text-muted">Pick a supplier. The order is filled with that supplier&apos;s medicines that are low or finished, in whole boxes (enough for about twice the minimum stock). You can change the quantities before sending.</p>
+      <p className="mb-3 text-sm text-muted">Pick a supplier. The order is filled with that supplier&apos;s medicines that are low or finished, in whole boxes (enough to fill up to the medicine's maximum level, or about twice the minimum if none is set). You can change the quantities before sending.</p>
       <Field label="Supplier"><Select value={supplier} onChange={(e) => setSupplier(e.target.value)}><option value="">Select...</option>{suppliers.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}</Select></Field>
       <p className="mt-3 text-xs text-muted">Medicines are matched to a supplier on the Medicines page (the &quot;Supplier&quot; field).</p>
     </Modal>

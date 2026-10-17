@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Clock, Download, PackageX, Printer, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, Boxes, Clock, Download, PackageX, Printer, SlidersHorizontal } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { dateOnly, dateTime, money, stockText } from '@/lib/format';
@@ -131,6 +131,8 @@ function Alerts() {
   const bHead = ['Medicine', 'Batch', 'Expiry', 'Time left', { label: 'Quantity', right: true }];
   const stockRow = (r) => (<tr key={r._id}><td className="px-3 py-2 font-medium">{r.name}</td><td className="num px-3 py-2 text-right">{stockText(r.display)}</td><td className="num px-3 py-2 text-right">{r.minStockLevel} units</td></tr>);
   const sHead = ['Medicine', { label: 'Available', right: true }, { label: 'Minimum level', right: true }];
+  const overRow = (r) => (<tr key={r._id}><td className="px-3 py-2 font-medium">{r.name}</td><td className="num px-3 py-2 text-right">{stockText(r.display)}</td><td className="num px-3 py-2 text-right">{r.maxStockLevel} units</td><td className="num px-3 py-2 text-right text-amber">{stockText(r.excessDisplay)} extra</td></tr>);
+  const oHead = ['Medicine', { label: 'Available', right: true }, { label: 'Maximum level', right: true }, { label: 'Above the maximum by', right: true }];
 
   return (
     <>
@@ -140,6 +142,7 @@ function Alerts() {
       <Section icon={Clock} title={`Expiring in 61-90 days (${counts.nearExpiry90})`} tone="warn" rows={data.nearExpiry.d90} render={batchRow} head={bHead} />
       <Section icon={AlertTriangle} title="Low stock" tone="warn" rows={data.lowStock} render={stockRow} head={sHead} />
       <Section icon={AlertTriangle} title="Out of stock" tone="bad" rows={data.outOfStock} render={stockRow} head={sHead} />
+      <Section icon={Boxes} title="Over stock (more than the maximum level: money sitting on the shelf)" tone="warn" rows={data.overStock || []} render={overRow} head={oHead} />
     </>
   );
 }
@@ -190,7 +193,7 @@ function Reorder() {
   return (
     <>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted">Everything low or out of stock, grouped by supplier. Suggested = enough to reach twice the minimum level, in whole boxes. {d.totals.items} items, estimated cost <b className="text-ink">{money(d.totals.estCost)}</b>.</p>
+        <p className="text-sm text-muted">Everything low or out of stock, grouped by supplier. Suggested = enough to fill up to the maximum level (or twice the minimum if no maximum is set), in whole boxes. {d.totals.items} items, estimated cost <b className="text-ink">{money(d.totals.estCost)}</b>.</p>
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" disabled={!flat.length} onClick={() => downloadCsv(`reorder-${new Date().toISOString().slice(0, 10)}.csv`, [{ key: 'supplier', label: 'Supplier' }, { key: 'name', label: 'Medicine' }, { key: 'available', label: 'In stock (units)' }, { key: 'min', label: 'Minimum level' }, { key: 'boxes', label: 'Suggested boxes' }, { key: 'cost', label: 'Estimated cost' }], flat)}><Download className="h-4 w-4" /> CSV</Button>
           <Button size="sm" disabled={!flat.length} onClick={() => window.print()}><Printer className="h-4 w-4" /> Print list</Button>

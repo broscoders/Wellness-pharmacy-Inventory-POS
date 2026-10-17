@@ -1,22 +1,20 @@
 'use client';
 import { useCallback, useRef, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { FileUp, PackagePlus, Pencil, Plus, Search } from 'lucide-react';
+import { FileUp, Gauge, PackagePlus, Pencil, Plus, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { money, stockText, dateOnly, dateTime } from '@/lib/format';
-import { unitsPerBox, sellPrice } from '@/lib/units';
+import { fromBase, unitsPerBox, sellPrice } from '@/lib/units';
+import { derivedPrices, marginPct, packText, priceFromMargin } from '@/lib/pricing';
 import { locationText } from '@/lib/search';
-import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table, Textarea } from '@/components/ui';
+import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Modal, PageHeader, Select, Spinner, Table } from '@/components/ui';
 
 const emptyForm = {
   name: '', genericName: '', category: '', manufacturer: '', barcode: '', packType: 'Box', stripsPerBox: 10, unitsPerStrip: 10,
-  purchasePrice: '', saleBox: '', saleStrip: '', saleUnit: '', wholesaleBox: '', minStockLevel: 0, requiresPrescription: false,
+  purchasePrice: '', saleBox: '', saleStrip: '', saleUnit: '', wholesaleBox: '', minStockLevel: 0, maxStockLevel: 0, requiresPrescription: false,
   rack: '', row: '', side: '', dosageForm: '', storage: 'room', mrp: '',
 };
-
-// Margin = profit as a share of the selling price. Cost of a strip/unit is the box cost divided down.
-const marginPct = (cost, price) => (cost > 0 && price > 0 ? Math.round(((price - cost) / price) * 1000) / 10 : null);
 
 const num = (v) => (v === '' || v === null || v === undefined ? undefined : Number(v));
 
@@ -25,7 +23,7 @@ function toForm(m) {
     name: m.name, genericName: m.genericName || '', category: m.category?._id || m.category || '', manufacturer: m.manufacturer || '',
     barcode: m.barcode || '', packType: m.packType || 'Box', stripsPerBox: m.stripsPerBox, unitsPerStrip: m.unitsPerStrip,
     purchasePrice: m.purchasePrice || '', saleBox: m.salePrice?.box || '', saleStrip: m.salePrice?.strip || '', saleUnit: m.salePrice?.unit || '',
-    wholesaleBox: m.wholesalePrice?.box || '', minStockLevel: m.minStockLevel || 0, requiresPrescription: !!m.requiresPrescription,
+    wholesaleBox: m.wholesalePrice?.box || '', minStockLevel: m.minStockLevel || 0, maxStockLevel: m.maxStockLevel || 0, requiresPrescription: !!m.requiresPrescription,
     rack: m.rack || '', row: m.row || '', side: m.side || '', dosageForm: m.dosageForm || '', storage: m.storage || 'room', mrp: m.mrp || '',
   };
 }
@@ -37,7 +35,7 @@ function toPayload(f, withCost) {
     ...(withCost ? { purchasePrice: num(f.purchasePrice) ?? 0 } : {}), // staff who cannot see costs never send one
     salePrice: { box: num(f.saleBox) ?? 0, strip: num(f.saleStrip) ?? 0, unit: num(f.saleUnit) ?? 0 },
     wholesalePrice: { box: num(f.wholesaleBox) ?? 0 },
-    minStockLevel: Number(f.minStockLevel) || 0, requiresPrescription: f.requiresPrescription,
+    minStockLevel: Number(f.minStockLevel) || 0, maxStockLevel: Number(f.maxStockLevel) || 0, requiresPrescription: f.requiresPrescription,
     rack: f.rack.trim(), row: f.row.trim(), side: f.side.trim(), dosageForm: f.dosageForm.trim(), storage: f.storage, mrp: num(f.mrp) ?? 0,
   };
 }
@@ -72,11 +70,12 @@ export default function MedicinesPage() {
   useEffect(() => { const t = setTimeout(() => { setPage(1); setQ(search); }, 300); return () => clearTimeout(t); }, [search]);
 
   const canManage = can('medicines:manage');
+  const [levelsOpen, setLevelsOpen] = useState(false);
 
   return (
     <>
       <PageHeader title="Medicines" subtitle="Catalogue with live stock, batches and prices"
-        actions={canManage && <>{can('inventory:manage') && <Link href="/medicines/import" className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 font-medium hover:bg-mint"><FileUp className="h-4 w-4" /> Import from file</Link>}<Button onClick={() => setEditing('new')}><Plus className="h-4 w-4" /> Add medicine</Button></>} />
+        actions={canManage && <><Button variant="secondary" onClick={() => setLevelsOpen(true)}><Gauge className="h-4 w-4" /> Auto reorder levels</Button>{can('inventory:manage') && <Link href="/medicines/import" className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 font-medium hover:bg-mint"><FileUp className="h-4 w-4" /> Import from file</Link>}<Button onClick={() => setEditing('new')}><Plus className="h-4 w-4" /> Add medicine</Button></>} />
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-line p-3">
           <div className="relative w-full max-w-sm">
@@ -117,6 +116,7 @@ export default function MedicinesPage() {
         )}
       </Card>
 
+      {levelsOpen && <LevelsModal onClose={() => setLevelsOpen(false)} onApplied={() => { setLevelsOpen(false); load(); }} />}
       {editing && <MedicineForm medicine={editing === 'new' ? null : editing} categories={categories} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
       {detailId && <MedicineDetail id={detailId} onClose={() => setDetailId(null)} />}
       {stockFor && <StockForm medicine={stockFor} onClose={() => setStockFor(null)} onSaved={() => { setStockFor(null); load(); }} />}
@@ -124,18 +124,65 @@ export default function MedicinesPage() {
   );
 }
 
+function Section({ children }) {
+  return <h3 className="mb-2 mt-5 border-b border-line pb-1 text-sm font-semibold uppercase tracking-wide text-muted">{children}</h3>;
+}
+
 function MedicineForm({ medicine, categories, onClose, onSaved }) {
   const { can } = useAuth();
+  const canCost = can('costs:view');
   const [f, setF] = useState(medicine ? toForm(medicine) : emptyForm);
+  // strip / tablet prices are worked out from the box price until the person types their own (e.g. Rs 25 instead of 24.50)
+  const [auto, setAuto] = useState(() => {
+    if (!medicine) return { strip: true, unit: true };
+    const d = derivedPrices(medicine.salePrice?.box, medicine.stripsPerBox, medicine.unitsPerStrip);
+    const same = (have, want) => !have || Math.abs(have - want) < 0.01;
+    return { strip: same(medicine.salePrice?.strip, d.strip), unit: same(medicine.salePrice?.unit, d.unit) };
+  });
+  const [margin, setMargin] = useState('');
+  const [marginNote, setMarginNote] = useState('');
+  const [advice, setAdvice] = useState(null); // suggestion for the minimum / maximum, from real sales
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
   const hasStock = medicine && medicine.stock?.total > 0;
+
+  // every change goes through here so the automatic prices stay in step
+  // `leaveEmpty`: a box the person has just emptied to type a new price must not be refilled while they are typing
+  function change(patch, nextAuto = auto, leaveEmpty = []) {
+    const g = { ...f, ...patch };
+    if (Number(g.saleBox) > 0) {
+      const d = derivedPrices(g.saleBox, g.stripsPerBox, g.unitsPerStrip);
+      if (nextAuto.strip && !leaveEmpty.includes('saleStrip')) g.saleStrip = d.strip || '';
+      if (nextAuto.unit && !leaveEmpty.includes('saleUnit')) g.saleUnit = d.unit || '';
+    }
+    setAuto(nextAuto); setF(g);
+  }
+  const set = (k) => (e) => change({ [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
+  const typeStrip = (e) => change({ saleStrip: e.target.value }, { ...auto, strip: e.target.value === '' }, e.target.value === '' ? ['saleStrip'] : []);   // typing your own price switches the automatic one off; clearing it switches it back on
+  const typeUnit = (e) => change({ saleUnit: e.target.value }, { ...auto, unit: e.target.value === '' }, e.target.value === '' ? ['saleUnit'] : []);
+  const refill = () => change({}); // leaving an emptied price box hands it back to the formula
+
+  const cost = Number(f.purchasePrice) || 0;
+  const mrp = Number(f.mrp) || 0;
+  function applyMargin() {
+    const r = priceFromMargin(cost, margin, { mrp });
+    if (!r.price) { setMarginNote('Enter the purchase price first, and a margin between 0 and 99.'); return; }
+    change({ saleBox: r.price }, { strip: true, unit: true });
+    setMarginNote(r.cappedByMrp ? `Limited to the MRP (${mrp}), so the margin is ${marginPct(cost, r.price)}%.` : `Box price set to ${r.price} (margin ${marginPct(cost, r.price)}%). Strip and tablet prices follow.`);
+  }
+  const min = Number(f.minStockLevel) || 0;
+  const max = Number(f.maxStockLevel) || 0;
+  const levelsBad = max > 0 && max < min;
+  const units = (n) => (n > 0 ? `= ${stockText(fromBase({ stripsPerBox: Number(f.stripsPerBox) || 1, unitsPerStrip: Number(f.unitsPerStrip) || 1 }, n)) || n}` : '');
+  async function suggest() {
+    setAdvice(null);
+    try { setAdvice(await api(`/medicines/${medicine._id}/stock-advice`)); } catch (e) { setErr(e.message); }
+  }
 
   async function save() {
     setBusy(true); setErr('');
     try {
-      const body = toPayload(f, can('costs:view'));
+      const body = toPayload(f, canCost);
       if (medicine) await api(`/medicines/${medicine._id}`, { method: 'PATCH', body });
       else await api('/medicines', { method: 'POST', body });
       onSaved();
@@ -144,7 +191,7 @@ function MedicineForm({ medicine, categories, onClose, onSaved }) {
 
   return (
     <Modal open onClose={onClose} title={medicine ? `Edit ${medicine.name}` : 'Add medicine'} width="max-w-2xl"
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={save} loading={busy}>Save</Button></>}>
+      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={save} loading={busy} disabled={levelsBad || f.name.trim().length < 2}>Save</Button></>}>
       <ErrorNote error={err} />
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Medicine name *"><Input value={f.name} onChange={set('name')} /></Field>
@@ -152,27 +199,107 @@ function MedicineForm({ medicine, categories, onClose, onSaved }) {
         <Field label="Category"><Select value={f.category} onChange={set('category')}><option value="">-</option>{categories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}</Select></Field>
         <Field label="Manufacturer"><Input value={f.manufacturer} onChange={set('manufacturer')} /></Field>
         <Field label="Barcode"><Input value={f.barcode} onChange={set('barcode')} /></Field>
-        <Field label="Minimum stock (units)" hint="Alert when stock falls to this level"><Input type="number" min="0" value={f.minStockLevel} onChange={set('minStockLevel')} /></Field>
-        <Field label="Strips in 1 box" hint={hasStock ? 'Locked: this medicine has stock' : '1 box = ? strips'}><Input type="number" min="1" disabled={hasStock} value={f.stripsPerBox} onChange={set('stripsPerBox')} /></Field>
-        <Field label="Units in 1 strip" hint={hasStock ? 'Locked: this medicine has stock' : '1 strip = ? tablets'}><Input type="number" min="1" disabled={hasStock} value={f.unitsPerStrip} onChange={set('unitsPerStrip')} /></Field>
-        {can('costs:view') && <Field label="Purchase price (per box)"><Input type="number" min="0" value={f.purchasePrice} onChange={set('purchasePrice')} /></Field>}
-        <Field label="Wholesale price (per box)"><Input type="number" min="0" value={f.wholesaleBox} onChange={set('wholesaleBox')} /></Field>
-        <Field label="Sale price per box"><Input type="number" min="0" value={f.saleBox} onChange={set('saleBox')} /></Field>
-        <Field label="Sale price per strip"><Input type="number" min="0" value={f.saleStrip} onChange={set('saleStrip')} /></Field>
-        <Field label="Sale price per unit/tablet"><Input type="number" min="0" value={f.saleUnit} onChange={set('saleUnit')} /></Field>
-        <Field label="MRP (printed price per box)" hint="Selling above this is not allowed"><Input type="number" min="0" value={f.mrp} onChange={set('mrp')} /></Field>
-        <label className="flex items-center gap-2 pt-6"><input type="checkbox" checked={f.requiresPrescription} onChange={set('requiresPrescription')} /> Requires prescription</label>
+        <Field label="Dosage form"><Input list="dosage-forms" value={f.dosageForm} onChange={set('dosageForm')} placeholder="Tablet, Syrup..." /></Field>
       </div>
-      {can('costs:view') && <MarginPreview f={f} />}
-      <h3 className="mb-2 mt-5 font-semibold">Where to find it</h3>
+
+      <Section>Pack</Section>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Strips in 1 box" hint={hasStock ? 'Locked: this medicine has stock' : '1 box = ? strips'}><Input type="number" min="1" disabled={hasStock} value={f.stripsPerBox} onChange={set('stripsPerBox')} /></Field>
+        <Field label="Tablets in 1 strip" hint={hasStock ? 'Locked: this medicine has stock' : '1 strip = ? tablets'}><Input type="number" min="1" disabled={hasStock} value={f.unitsPerStrip} onChange={set('unitsPerStrip')} /></Field>
+      </div>
+      <p className="mt-1 text-sm font-medium text-pine-dark" data-testid="pack-text">{packText(f.stripsPerBox, f.unitsPerStrip)}</p>
+
+      <Section>Prices</Section>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {canCost && <Field label="Purchase price (per box)"><Input type="number" min="0" value={f.purchasePrice} onChange={set('purchasePrice')} /></Field>}
+        <Field label="MRP (printed price per box)" hint="Selling above this is not allowed"><Input type="number" min="0" value={f.mrp} onChange={set('mrp')} /></Field>
+      </div>
+      <div className="mt-3 flex flex-wrap items-end gap-3 rounded-md bg-paper p-3">
+        {canCost && (
+          <>
+            <Field label="Set price from profit margin %" hint="Profit as a share of the selling price"><Input className="num w-32" type="number" min="0" max="99" value={margin} onChange={(e) => setMargin(e.target.value)} placeholder="e.g. 20" /></Field>
+            <Button variant="secondary" onClick={applyMargin} disabled={!cost || margin === ''}>Set box price</Button>
+          </>
+        )}
+        {mrp > 0 && <Button variant="secondary" onClick={() => { change({ saleBox: mrp }, { strip: true, unit: true }); setMarginNote(`Box price set to the MRP (${mrp}). Strip and tablet prices follow.`); }}>Sell at MRP ({mrp})</Button>}
+        {marginNote && <p className="w-full text-sm text-pine-dark">{marginNote}</p>}
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <Field label="Sale price per box"><Input type="number" min="0" value={f.saleBox} onChange={set('saleBox')} /></Field>
+        <Field label="Sale price per strip" hint={auto.strip && Number(f.saleBox) > 0 ? 'Automatic: box price divided by strips. Type your own to change.' : ''}><Input type="number" min="0" value={f.saleStrip} onChange={typeStrip} onBlur={refill} /></Field>
+        <Field label="Sale price per tablet / unit" hint={auto.unit && Number(f.saleBox) > 0 ? 'Automatic: box price divided by tablets. Type your own to change.' : ''}><Input type="number" min="0" value={f.saleUnit} onChange={typeUnit} onBlur={refill} /></Field>
+        <Field label="Wholesale price (per box)"><Input type="number" min="0" value={f.wholesaleBox} onChange={set('wholesaleBox')} /></Field>
+      </div>
+      {canCost && <MarginPreview f={f} />}
+
+      <Section>Stock levels</Section>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Minimum stock (tablets / units)" hint="Below this the medicine is Low and goes on the reorder list"><Input type="number" min="0" value={f.minStockLevel} onChange={set('minStockLevel')} /></Field>
+        <Field label="Maximum stock (tablets / units)" hint="Reorders fill up to this. Empty or 0 = twice the minimum"><Input type="number" min="0" value={f.maxStockLevel} onChange={set('maxStockLevel')} /></Field>
+      </div>
+      <p className="num mt-1 text-xs text-muted">{min > 0 && <>Minimum {units(min)}. </>}{max > 0 && <>Maximum {units(max)}.</>}</p>
+      {levelsBad && <p className="mt-1 text-sm font-medium text-danger" role="alert">The maximum cannot be lower than the minimum.</p>}
+      {medicine && (
+        <div className="mt-2 rounded-md bg-paper p-3 text-sm">
+          <Button variant="secondary" size="sm" onClick={suggest}>Suggest from my sales</Button>
+          {advice && (advice.suggestion ? (
+            <p className="mt-2">It sells about <b>{advice.suggestion.perDay}</b> a day (last {advice.windowDays} days). Suggested: minimum <b>{advice.suggestion.min}</b> (about {advice.leadDays} days of sales), maximum <b>{advice.suggestion.max}</b> (about {advice.coverDays} days).{' '}
+              <button className="font-medium text-pine underline" onClick={() => setF({ ...f, minStockLevel: advice.suggestion.min, maxStockLevel: advice.suggestion.max })}>Use these</button></p>
+          ) : <p className="mt-2 text-muted">No sales in the last {advice.windowDays} days, so there is nothing to base a suggestion on yet.</p>)}
+        </div>
+      )}
+
+      <Section>Where to find it, and how to keep it</Section>
       <div className="grid gap-3 sm:grid-cols-3">
         <Field label="Rack"><Input value={f.rack} onChange={set('rack')} placeholder="e.g. A" /></Field>
         <Field label="Row / shelf"><Input value={f.row} onChange={set('row')} placeholder="e.g. 3" /></Field>
         <Field label="Side"><Input value={f.side} onChange={set('side')} placeholder="e.g. Left" /></Field>
-        <Field label="Dosage form"><Input list="dosage-forms" value={f.dosageForm} onChange={set('dosageForm')} placeholder="Tablet, Syrup..." /></Field>
         <Field label="Storage"><Select value={f.storage} onChange={set('storage')}><option value="room">Room temperature</option><option value="cool">Cool place</option><option value="fridge">Fridge (2-8 C)</option></Select></Field>
+        <label className="flex items-center gap-2 pt-6 sm:col-span-2"><input type="checkbox" checked={f.requiresPrescription} onChange={set('requiresPrescription')} /> Requires prescription (Rx)</label>
       </div>
       <datalist id="dosage-forms">{['Tablet', 'Capsule', 'Syrup', 'Suspension', 'Injection', 'Drops', 'Cream', 'Ointment', 'Gel', 'Inhaler', 'Sachet', 'Suppository', 'Other'].map((d) => <option key={d} value={d} />)}</datalist>
+    </Modal>
+  );
+}
+
+// Suggested minimum / maximum for every medicine that has sold, from the last 60 days of sales. The owner ticks which to apply.
+function LevelsModal({ onClose, onApplied }) {
+  const [d, setD] = useState(null);
+  const [picked, setPicked] = useState({});
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api('/medicines/levels').then((r) => { setD(r); setPicked(Object.fromEntries(r.data.filter((x) => x.changed).map((x) => [x._id, true]))); }).catch((e) => setErr(e.message));
+  }, []);
+  const ids = Object.keys(picked).filter((k) => picked[k]);
+  async function apply() {
+    setBusy(true); setErr('');
+    try { await api('/medicines/levels', { method: 'POST', body: { ids } }); onApplied(); } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }
+  const show = (disp, n) => (n > 0 ? stockText(disp) || n : 'not set');
+  return (
+    <Modal open onClose={onClose} title="Auto reorder levels" width="max-w-4xl"
+      footer={<><Button variant="secondary" onClick={onClose}>Close</Button><Button onClick={apply} loading={busy} disabled={!ids.length}>Apply to {ids.length} medicine{ids.length === 1 ? '' : 's'}</Button></>}>
+      <ErrorNote error={err} />
+      {!d ? <Spinner /> : (
+        <>
+          <p className="mb-3 text-sm text-muted">Worked out from what each medicine really sold in the last {d.windowDays} days: the <b>minimum</b> is about {d.leadDays} days of sales (the time to get new stock), the <b>maximum</b> about {d.coverDays} days, in whole strips. Tick the ones you want to change. Medicines that have not sold are left alone.</p>
+          {d.data.length === 0 ? <p className="py-8 text-center text-muted">No sales in the last {d.windowDays} days yet, so there is nothing to suggest.</p> : (
+            <div className="max-h-[55vh] overflow-auto">
+              <Table head={['', 'Medicine', { label: 'Sells / day', right: true }, 'Minimum now', 'Minimum suggested', 'Maximum now', 'Maximum suggested']}>
+                {d.data.map((r) => (
+                  <tr key={r._id} className={r.changed ? '' : 'text-muted'}>
+                    <td className="px-3 py-2"><input type="checkbox" checked={!!picked[r._id]} onChange={(e) => setPicked({ ...picked, [r._id]: e.target.checked })} aria-label={`Apply to ${r.name}`} /></td>
+                    <td className="px-3 py-2 font-medium">{r.name}</td><td className="num px-3 py-2 text-right">{r.perDay}</td>
+                    <td className="px-3 py-2">{show(r.current.minDisplay, r.current.min)}</td><td className="px-3 py-2 font-medium">{show(r.suggested.minDisplay, r.suggested.min)}</td>
+                    <td className="px-3 py-2">{show(r.current.maxDisplay, r.current.max)}</td><td className="px-3 py-2 font-medium">{show(r.suggested.maxDisplay, r.suggested.max)}</td>
+                  </tr>
+                ))}
+              </Table>
+            </div>
+          )}
+        </>
+      )}
     </Modal>
   );
 }

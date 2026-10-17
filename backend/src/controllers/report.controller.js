@@ -6,7 +6,6 @@ const Customer = require('../models/Customer');
 const CustomerLedger = require('../models/CustomerLedger');
 const Supplier = require('../models/Supplier');
 const SupplierLedger = require('../models/SupplierLedger');
-const Expense = require('../models/Expense');
 const Medicine = require('../models/Medicine');
 const Batch = require('../models/Batch');
 const StockMovement = require('../models/StockMovement');

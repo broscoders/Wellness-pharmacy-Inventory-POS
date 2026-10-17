@@ -7,6 +7,7 @@ const { getPagination, pageMeta, escapeRegex } = require('../utils/pagination');
 const { stockByMedicine, decorateMedicine } = require('../services/inventory.service');
 const { buildCatalog } = require('../services/catalog.service');
 const { internalEan13 } = require('../utils/ean');
+const { soldByMedicine, suggestLevels, levelsPreview, WINDOW_DAYS, LEAD_DAYS, COVER_DAYS } = require('../services/levels.service');
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, 'Invalid id');
 const price = z.object({ box: z.number().min(0).optional(), strip: z.number().min(0).optional(), unit: z.number().min(0).optional() });
@@ -25,6 +26,7 @@ const baseSchema = z.object({
   salePrice: price.optional(),
   wholesalePrice: price.optional(),
   minStockLevel: z.number().int().min(0).optional(),
+  maxStockLevel: z.number().int().min(0).optional(),
   requiresPrescription: z.boolean().optional(),
   rack: z.string().trim().max(40).optional(),
   row: z.string().trim().max(40).optional(),
@@ -47,6 +49,11 @@ const clean = (body, user) => {
   if (b.supplier === null) delete b.supplier;
   return b;
 };
+
+// A maximum below the minimum makes no sense (0 = not set).
+function assertLevels(min, max) {
+  if (max > 0 && max < (min || 0)) throw ApiError.badRequest(`Maximum stock (${max}) cannot be lower than the minimum (${min})`);
+}
 
 // The shop may never sell a box above the printed MRP.
 function assertMrp(mrp, salePrice) {
@@ -116,6 +123,25 @@ const assignBarcodes = asyncHandler(async (req, res) => {
   res.json({ success: true, assigned: done.length, remaining: Math.max((await Medicine.countDocuments({ isActive: true, $or: [{ barcode: { $exists: false } }, { barcode: '' }] })), 0) });
 });
 
+// Suggested minimum / maximum for ONE medicine, from what it sold in the last 60 days.
+const stockAdvice = asyncHandler(async (req, res) => {
+  const med = await Medicine.findById(req.params.id).select('name stripsPerBox unitsPerStrip minStockLevel maxStockLevel').lean();
+  if (!med) throw ApiError.notFound('Medicine not found');
+  const sold = (await soldByMedicine()).get(String(med._id)) || 0;
+  res.json({ success: true, windowDays: WINDOW_DAYS, leadDays: LEAD_DAYS, coverDays: COVER_DAYS, sold, suggestion: suggestLevels(med, sold) });
+});
+
+// All medicines that have sold: current vs suggested levels, so the owner can review and apply them in one go.
+const levelsPreviewList = asyncHandler(async (req, res) => res.json({ success: true, ...(await levelsPreview()) }));
+const applyLevels = asyncHandler(async (req, res) => {
+  const ids = new Set(req.body.ids.map(String));
+  const { data } = await levelsPreview();
+  const todo = data.filter((r) => ids.has(String(r._id)));
+  for (const r of todo) await Medicine.updateOne({ _id: r._id }, { $set: { minStockLevel: r.suggested.min, maxStockLevel: r.suggested.max } }); // recomputed here: the screen's numbers are never trusted
+  await audit(req, 'medicine.auto_levels', 'Medicine', undefined, { count: todo.length });
+  res.json({ success: true, applied: todo.length });
+});
+
 const byBarcode = asyncHandler(async (req, res) => {
   const med = await Medicine.findOne({ barcode: req.params.code, isActive: true });
   if (!med) throw ApiError.notFound('No medicine found for this barcode');
@@ -125,6 +151,7 @@ const byBarcode = asyncHandler(async (req, res) => {
 
 const create = asyncHandler(async (req, res) => {
   assertMrp(req.body.mrp, req.body.salePrice);
+  assertLevels(req.body.minStockLevel, req.body.maxStockLevel);
   const med = await Medicine.create(clean(req.body, req.user));
   await audit(req, 'medicine.create', 'Medicine', med._id, { name: med.name });
   res.status(201).json({ success: true, data: med });
@@ -151,6 +178,7 @@ const update = asyncHandler(async (req, res) => {
   });
 
   assertMrp(body.mrp ?? before.mrp, body.salePrice ? { ...before.salePrice?.toObject?.(), ...body.salePrice } : before.salePrice);
+  assertLevels(body.minStockLevel ?? before.minStockLevel, body.maxStockLevel ?? before.maxStockLevel);
   Object.assign(before, body);
   await before.save();
   await audit(req, 'medicine.update', 'Medicine', before._id, { fields: Object.keys(body) });
@@ -166,6 +194,7 @@ const archive = asyncHandler(async (req, res) => {
 });
 
 const { importMedicines } = require('../services/import.service');
+const levelsSchema = z.object({ ids: z.array(objectId).min(1).max(1000) });
 const assignSchema = z.object({ ids: z.array(objectId).max(500).optional() });
 const importSchema = z.object({
   rows: z.array(z.record(z.string(), z.any())).min(1, 'The file has no data rows').max(1500, 'Maximum 1500 rows per import - split the file'),
@@ -179,4 +208,4 @@ const importRows = asyncHandler(async (req, res) => {
   res.json({ success: true, dryRun: req.body.dryRun, ...result, rows: result.rows.filter((r) => r.status !== 'create' || r.warnings.length || r.messages.length).slice(0, 500) });
 });
 
-module.exports = { list, filters, catalog, assignBarcodes, getOne, byBarcode, create, update, archive, importRows, createSchema, updateSchema, importSchema, assignSchema, objectId };
+module.exports = { list, filters, catalog, assignBarcodes, stockAdvice, levelsPreviewList, applyLevels, levelsSchema, getOne, byBarcode, create, update, archive, importRows, createSchema, updateSchema, importSchema, assignSchema, objectId };

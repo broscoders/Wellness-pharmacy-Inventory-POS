@@ -52,18 +52,21 @@ function expiryStatus(expiryDate, now = new Date()) {
 async function getAlerts() {
   const now = new Date();
   const [meds, stockMap, batches] = await Promise.all([
-    Medicine.find({ isActive: true }).select('name genericName minStockLevel stripsPerBox unitsPerStrip'),
+    Medicine.find({ isActive: true }).select('name genericName minStockLevel maxStockLevel stripsPerBox unitsPerStrip'),
     stockByMedicine(),
     Batch.find({ isActive: true, quantity: { $gt: 0 } }).populate('medicine', 'name stripsPerBox unitsPerStrip').sort({ expiryDate: 1 }),
   ]);
 
   const lowStock = [];
   const outOfStock = [];
+  const overStock = [];
   for (const m of meds) {
     const s = stockMap.get(String(m._id)) || { sellable: 0 };
     const row = { _id: m._id, name: m.name, genericName: m.genericName, minStockLevel: m.minStockLevel, available: s.sellable, display: fromBase(m, s.sellable) };
+    row.maxStockLevel = m.maxStockLevel || 0;
     if (s.sellable === 0) outOfStock.push(row);
     else if (s.sellable <= m.minStockLevel) lowStock.push(row);
+    else if (m.maxStockLevel > 0 && s.sellable > m.maxStockLevel) overStock.push({ ...row, excess: s.sellable - m.maxStockLevel, excessDisplay: fromBase(m, s.sellable - m.maxStockLevel) });
   }
 
   const expired = [];
@@ -79,18 +82,20 @@ async function getAlerts() {
   }
 
   return {
-    data: { lowStock, outOfStock, expired, nearExpiry: near },
+    data: { lowStock, outOfStock, overStock, expired, nearExpiry: near },
     counts: {
-      lowStock: lowStock.length, outOfStock: outOfStock.length, expired: expired.length,
+      lowStock: lowStock.length, outOfStock: outOfStock.length, overStock: overStock.length, expired: expired.length,
       nearExpiry30: near.d30.length, nearExpiry60: near.d60.length, nearExpiry90: near.d90.length,
     },
   };
 }
 
-// How many whole boxes to order for a medicine that is low/out: enough to reach TWICE the minimum level, at least one box.
+// How many whole boxes to order for a medicine that is low/out: enough to reach the MAXIMUM level when one is set,
+// otherwise twice the minimum; at least one box.
 function suggestedBoxes(med, available) {
   const upb = (med.stripsPerBox || 1) * (med.unitsPerStrip || 1);
-  const need = Math.max((med.minStockLevel || 0) * 2 - available, upb);
+  const target = med.maxStockLevel > 0 ? med.maxStockLevel : (med.minStockLevel || 0) * 2;
+  const need = Math.max(target - available, upb);
   return Math.ceil(need / upb);
 }
 

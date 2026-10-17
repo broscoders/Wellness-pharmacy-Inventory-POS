@@ -137,7 +137,7 @@ describe('medicine form for staff who cannot see costs', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).queryByText(/Purchase price/)).toBeNull();
     expect(within(dialog).queryByText(/Profit margin on your sale prices/)).toBeNull();
-    expect(within(dialog).getByText('Where to find it')).toBeInTheDocument(); // the rest of the form is intact
+    expect(within(dialog).getByText(/Where to find it/)).toBeInTheDocument(); // the rest of the form is intact
     await user.type(within(dialog).getAllByRole('textbox')[0], 'New Medicine');
     await user.click(within(dialog).getByRole('button', { name: /Save|Add/ }));
     await waitFor(() => expect(posts.length).toBe(1));

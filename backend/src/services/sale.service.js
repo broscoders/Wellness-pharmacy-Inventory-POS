@@ -8,7 +8,6 @@ const { toBase, unitsPerBox, unitPrice } = require('../utils/units');
 const { round2 } = require('../utils/money');
 const { nextNumber } = require('../utils/counter');
 const mongoose = require('mongoose');
-const Batch = require('../models/Batch');
 const StockMovement = require('../models/StockMovement');
 const { planFEFO, loadSellableBatches, takeStock, putBackStock, recordMovements, applyMovement } = require('./stock.service');
 const { postCustomerLedger } = require('./ledger.service');
@@ -167,7 +166,6 @@ async function processReturn(sale, input, user) {
   if (sale.status === 'cancelled') throw ApiError.badRequest('Cancelled invoices cannot be returned');
   const retItems = [];
   let refundAmount = 0;
-  let costTotal = 0;
 
   // Validate everything first (no writes), so a bad line cannot leave a half-processed return.
   const wanted = new Map();
@@ -205,7 +203,6 @@ async function processReturn(sale, input, user) {
     const refund = round2((item.netTotal / item.baseQty) * baseQty);
     const cost = round2((item.costTotal / item.baseQty) * baseQty);
     refundAmount += refund;
-    costTotal += cost;
     retItems.push({ saleItem: item._id, medicine: item.medicine, name: item.name, batch: item.batch, batchNumber: item.batchNumber, baseQty, refund, cost });
 
     await applyMovement({

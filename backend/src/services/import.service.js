@@ -33,6 +33,8 @@ function parseRow(raw) {
   const saleUnit = field('salePriceUnit', 'Sale price per unit', { def: 0 });
   const wholesaleBox = field('wholesalePriceBox', 'Wholesale price per box', { def: 0 });
   const minStockLevel = field('minStock', 'Minimum stock', { int: true, def: 0 });
+  const maxStockLevel = field('maxStock', 'Maximum stock', { int: true, def: 0 });
+  if (maxStockLevel > 0 && maxStockLevel < minStockLevel) errors.push('Maximum stock is lower than the minimum stock');
   const ob = field('openingBoxes', 'Opening boxes', { def: 0 });
   const os = field('openingStrips', 'Opening strips', { def: 0 });
   const ou = field('openingUnits', 'Opening units', { def: 0 });
@@ -41,7 +43,7 @@ function parseRow(raw) {
 
   const medicine = {
     name, genericName: r.genericName || undefined, manufacturer: r.manufacturer || undefined, barcode: r.barcode || undefined,
-    stripsPerBox, unitsPerStrip, purchasePrice, minStockLevel,
+    stripsPerBox, unitsPerStrip, purchasePrice, minStockLevel, maxStockLevel,
     salePrice: { box: saleBox, strip: saleStrip, unit: saleUnit }, wholesalePrice: { box: wholesaleBox },
     requiresPrescription: yes(r.requiresPrescription),
     rack: r.rack || undefined, row: r.row || undefined, side: r.side || undefined, dosageForm: r.dosageForm || undefined,

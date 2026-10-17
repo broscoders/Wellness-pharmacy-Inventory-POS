@@ -189,7 +189,6 @@ export default function PosPage() {
   const remaining = round2(total - received - eff.credit);
   const change = received + eff.credit > total ? round2(received + eff.credit - total) : 0;
   const needsRx = lines.some((l) => l.med?.requiresPrescription);
-  const hasShort = lines.some((l) => l.short || l.missing);
   const hasNoPrice = lines.some((l) => l.med && !l.unitPrice);
   const blockReason = !lines.length ? 'Add a medicine to the bill first'
     : lines.some((l) => l.missing) ? 'A medicine on the bill is no longer available: remove it'
