@@ -13,10 +13,12 @@ Now: when the POS opens, the full medicine list (names, generic names, prices, s
 
 The server still has the last word: when a bill is completed, the server re-checks stock, expiry and prices. An old screen can never sell expired or missing stock.
 
-## Screen space on a small laptop
-- The 3-bar button at the top of the menu folds it into a thin icon strip (hover an icon to see its name). The 3-bar button on the strip opens the full menu over the page, like on a phone. The choice is remembered on that computer.
-- The POS does **not** list all medicines. The left side is empty until you type a name or scan a barcode, and then it shows only what matches. With the mouse, each result has a small quantity box (1, 2, 3...) and a price button per unit: **Box**, **Strip (patta)** and **Tablet (goli)** (a single bottle or tube only shows **Unit**). Set how many, then press the unit you need: that many of that unit go on the bill at the unit's own price (for example 2 x Tablet = 2 x the price of one goli). Clicking the name or pressing Enter gives the usual unit (strip). To give 10 tablets in one go type `10t*pana` (`2s*pana` = 2 strips, `1b*pana` = 1 box). The bill shows the whole medicine name, its generic name and maker, the unit, quantity, rate and amount.
-- The Total and the Complete sale button stay at the bottom; if the screen is short, the customer, cash and prescription part scrolls inside its own box. Browser zoom 90% (Ctrl and minus) shows even more.
+## The POS screen (three parts, built to show 10+ medicines at once)
+- **Left: find.** Empty until you type or scan; then only the matches, each with its quantity box and Box / Strip (patta) / Tablet (goli) buttons. Enter asks the "how many?" questions here.
+- **Middle: the bill.** A real table: Medicine, Unit, Quantity, Rate, Amount, one slim line per medicine (a very long name wraps onto a second line). On a 1366x630 laptop screen 12 medicines are visible at once, on a 1280x560 screen 10, and on a bigger screen all of them; beyond that the bill scrolls on its own, the rest of the page never moves. A medicine with a prescription mark shows a small **Rx**, a fridge item **Fridge**; the medicine just added also shows where to pick it from (rack, row, side).
+- **Right: pay.** The **Total** is at the top, then customer, cash (with quick buttons) and, only when needed, the prescription check. The **Complete sale** button is always at the bottom.
+- The side menu starts **folded** on the POS (3-bar button to open it over the page), and open on every other page, unless you choose otherwise. Windows (receipt, forms) are never taller than the screen: the middle scrolls and the buttons stay in view.
+- On a phone the three parts stack one under the other.
 
 ## Counter shortcuts
 | Key | What it does |

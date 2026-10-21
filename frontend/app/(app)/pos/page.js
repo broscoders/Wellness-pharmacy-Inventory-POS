@@ -312,13 +312,13 @@ export default function PosPage() {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[minmax(0,1fr)_minmax(500px,42%)]">
+      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[minmax(270px,0.55fr)_minmax(0,1.7fr)_minmax(280px,320px)]">
         {/* LEFT: find medicines */}
         <Card className="no-print flex min-h-0 flex-col">
           <div className="space-y-1.5 border-b border-line p-2.5">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted" />
-              <Input ref={searchRef} className="h-11 pl-10 pr-24 text-base" placeholder="Scan barcode or type medicine name" value={term} autoComplete="off" spellCheck={false}
+              <Input ref={searchRef} className={`h-11 pl-10 text-base ${(parsed.qty > 1 || parsed.unit) && parsed.text ? 'pr-28' : 'pr-3'}`} placeholder="Search or scan" value={term} autoComplete="off" spellCheck={false}
                 onChange={(e) => setTerm(e.target.value)} onKeyDown={onSearchKey} aria-label="Search medicine" />
               {(parsed.qty > 1 || parsed.unit) && parsed.text && <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded bg-mint px-2 py-0.5 text-xs font-semibold text-pine-dark">Qty {parsed.qty}{parsed.unit ? ` ${parsed.unit === 'unit' ? 'loose' : parsed.unit}` : ''}</span>}
             </div>
@@ -344,10 +344,10 @@ export default function PosPage() {
                   </div>
                 )}
                 {catalog?.ready && !altMed && !parsed.text && (
-                  <div className="flex flex-col items-center px-6 py-14 text-center text-muted">
+                  <div className="flex flex-col items-center px-6 py-8 text-center text-muted sm:py-14">
                     <Search className="mb-3 h-10 w-10 text-line" />
                     <p className="text-base font-medium text-ink">Type a medicine name or scan its barcode</p>
-                    <p className="mt-1 max-w-sm text-sm">Only the medicines you search for are shown. Press <b>Enter</b> on the medicine you want: it asks how many <b>goli</b>, then how many <b>patta</b>, then how many <b>box</b>. Or press the Box / Strip / Tablet button with the mouse.</p>
+                    <p className="mt-1 hidden max-w-sm text-sm sm:block">Only the medicines you search for are shown. Press <b>Enter</b> on the medicine you want: it asks how many <b>goli</b>, then how many <b>patta</b>, then how many <b>box</b>. Or press the Box / Strip / Tablet button with the mouse.</p>
                   </div>
                 )}
                 {catalog?.ready && !altMed && parsed.text && !results.length && (
@@ -362,8 +362,8 @@ export default function PosPage() {
         </Card>
 
         {/* RIGHT: the bill */}
-        <div className="flex min-h-0 flex-col gap-2">
-          <Card className="flex min-h-[170px] flex-1 flex-col">
+        <div className="flex min-h-0 flex-col gap-2 xl:contents">
+          <Card className="flex min-h-[170px] flex-1 flex-col xl:min-h-0">
             <div className="no-print flex items-center justify-between border-b border-line px-3 py-2">
               <p className="text-sm font-semibold">Bill <span className="ml-1 font-normal text-muted">{lines.length ? `${lines.length} item${lines.length > 1 ? 's' : ''}` : ''}</span></p>
               {lines.length > 0 && <button className="text-xs text-muted hover:text-danger" onClick={() => { if (confirm('Clear this bill?')) clearBill(); }}>Clear</button>}
@@ -371,7 +371,7 @@ export default function PosPage() {
             <div className="min-h-0 flex-1 overflow-y-auto">
               {lines.length === 0 ? <p className="p-8 text-center text-sm text-muted">Nothing on the bill yet.<br />Scan or search a medicine on the left.</p> : (
                 <>
-                <div className="sticky top-0 z-10 flex justify-between border-b border-line bg-paper px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-muted"><span>Medicine, unit, quantity, rate</span><span>Amount</span></div>
+                <div className={`sticky top-0 z-10 hidden sm:grid sm:grid-cols-[minmax(0,1fr)_68px_90px_52px_62px_42px] items-center gap-x-1.5 border-b border-line bg-paper px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-muted`}><span>Medicine</span><span>Unit</span><span className="text-center">Quantity</span><span className="text-right">Rate</span><span className="text-right">Amount</span><span /></div>
                 <ul className="divide-y divide-line">
                   {lines.map((l) => <BillLine key={l.key} l={l} hot={l.key === lastKey} onChange={(p) => setLine(l.key, p)} onRemove={() => removeLine(l.key)} onAlt={() => setAltFor(l.id)} onDone={() => searchRef.current?.focus()} />)}
                 </ul>
@@ -380,9 +380,28 @@ export default function PosPage() {
             </div>
           </Card>
 
-          <Card className="no-print p-2.5">
+          <Card className="no-print p-2.5 xl:flex xl:min-h-0 xl:flex-col">
             {/* details can scroll on a short screen; the total and the Complete sale button never leave the bottom */}
-            <div className="max-h-[34vh] space-y-2 overflow-y-auto pr-0.5">
+            <div className="mb-2">
+            <div className="rounded-lg bg-pine-dark px-3 py-2 text-white">
+                <div className="num flex items-end justify-between">
+                  <span className="text-sm text-white/70">Total</span>
+                  <span className="text-2xl font-semibold leading-none tracking-tight">{money(total)}</span>
+                </div>
+                <div className="num mt-1.5 flex items-center justify-between gap-3 text-xs text-white/70">
+                  <span>Subtotal {money(subtotal)}</span>
+                  {can('sales:discount') && (
+                    <label className="flex items-center gap-1.5">Discount
+                      <input className="num h-7 w-14 rounded border border-white/30 bg-white/10 px-2 text-right text-white placeholder:text-white/40 focus:border-white focus:outline-none" value={discountText} onChange={(e) => setDiscountText(e.target.value)} placeholder="0" inputMode="decimal" aria-label="Discount percent" />
+                      <span>%</span>
+                      {disc > 0 && <span className="font-medium text-white">= {money(disc)}</span>}
+                    </label>
+                  )}
+                </div>
+              </div>
+
+            </div>
+            <div className="max-h-[34vh] space-y-2 overflow-y-auto pr-0.5 xl:max-h-none xl:min-h-0 xl:flex-1">
               <CustomerPicker customer={customer} onChange={setCustomer} label="" placeholder="Customer (optional, needed for udhaar)" />
               <div className="flex items-center gap-2">
                 <span className="w-10 text-sm font-medium">Cash</span>
@@ -412,24 +431,7 @@ export default function PosPage() {
               )}
             </div>
             <div className="mt-2 space-y-2">
-              <div className="rounded-lg bg-pine-dark px-3 py-2 text-white">
-                <div className="num flex items-end justify-between">
-                  <span className="text-sm text-white/70">Total</span>
-                  <span className="text-2xl font-semibold leading-none tracking-tight">{money(total)}</span>
-                </div>
-                <div className="num mt-1.5 flex items-center justify-between gap-3 text-xs text-white/70">
-                  <span>Subtotal {money(subtotal)}</span>
-                  {can('sales:discount') && (
-                    <label className="flex items-center gap-1.5">Discount
-                      <input className="num h-7 w-14 rounded border border-white/30 bg-white/10 px-2 text-right text-white placeholder:text-white/40 focus:border-white focus:outline-none" value={discountText} onChange={(e) => setDiscountText(e.target.value)} placeholder="0" inputMode="decimal" aria-label="Discount percent" />
-                      <span>%</span>
-                      {disc > 0 && <span className="font-medium text-white">= {money(disc)}</span>}
-                    </label>
-                  )}
-                </div>
-              </div>
-
-              {lines.length > 0 && blockReason && remaining <= 0 && <p className="text-sm font-medium text-amber">{blockReason}</p>}
+              {lines.length > 0 && blockReason && remaining <= 0 && !(needsRx && !rx && !rxLink && blockReason.startsWith('Tick')) && <p className="text-sm font-medium text-amber">{blockReason}</p>}
               {total > 0 && (remaining > 0 || change > 0) && (
                 <div className="num text-sm">
                   {remaining > 0 && <p className="font-medium text-danger">Still to pay: {money(remaining)}</p>}
@@ -437,7 +439,7 @@ export default function PosPage() {
                 </div>
               )}
               <ErrorNote error={error} />
-              <Button size="lg" className="w-full" disabled={!canPay} loading={busy} onClick={checkout}>
+              <Button className="h-11 w-full text-base" disabled={!canPay} loading={busy} onClick={checkout}>
                 Complete sale{total ? ` - ${money(total)}` : ''} <span className="ml-1 hidden rounded bg-white/20 px-1.5 text-xs font-normal xl:inline">F9</span>
               </Button>
             </div>
@@ -557,8 +559,8 @@ function MedicineRow({ med, i, on, saleType, sameStrength, qty, onQty, onPick, o
   else if (s.isLow) stockBadge = <Badge tone="warn">Low</Badge>;
   return (
     <li data-i={i} role="option" aria-selected={on} aria-disabled={s.isOut}>
-      <div onMouseMove={onHover} className={`flex items-stretch gap-2 border-b border-line px-3 py-1.5 ${on ? 'bg-mint' : 'hover:bg-paper'} ${s.isOut ? 'opacity-70' : ''}`}>
-        <button type="button" onClick={() => onPick()} className="min-w-0 flex-1 text-left" title={`Add ${unitLabel(med, usual)}`}>
+      <div onMouseMove={onHover} className={`flex flex-wrap items-stretch gap-x-2 gap-y-1 border-b border-line px-3 py-1.5 ${on ? 'bg-mint' : 'hover:bg-paper'} ${s.isOut ? 'opacity-70' : ''}`}>
+        <button type="button" onClick={() => onPick()} className="min-w-[200px] flex-1 text-left" title={`Add ${unitLabel(med, usual)}`}>
           <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5"><span className="font-medium">{med.name}</span>{med.requiresPrescription && <Badge tone="warn">Rx</Badge>}{med.storage === 'fridge' && <Badge tone="good">Fridge</Badge>}{sameStrength === true && <Badge tone="good">Same strength</Badge>}{sameStrength === false && <Badge>Different strength</Badge>}</span>
           <span className="block truncate text-xs text-muted">{[med.genericName, med.manufacturer].filter(Boolean).join(' | ') || '\u00a0'}</span>
           {locationText(med) && <span className="block truncate text-xs font-medium text-pine-dark">{locationText(med)}</span>}
@@ -570,13 +572,13 @@ function MedicineRow({ med, i, on, saleType, sameStrength, qty, onQty, onPick, o
             onChange={onQty} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onPick(undefined, true); } }} />
           <button type="button" className="h-7 w-6 rounded border border-line bg-white text-sm hover:bg-mint" onClick={() => onQty(qty + 1)} aria-label={`More ${med.name}`}>+</button>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5" role="group" aria-label={`Choose unit for ${med.name}`}>
+        <div className="flex flex-wrap items-center gap-1" role="group" aria-label={`Choose unit for ${med.name}`}>
           {unitChoices(med).map((u) => {
             const price = sellPrice(med, saleType, u);
             return (
               <button key={u} type="button" disabled={!price} onClick={() => onPick(u)} title={price ? `Add ${qty} x ${unitName(med, u).toLowerCase()}` : 'No price set'}
-                className={`num flex min-w-[72px] flex-col items-center rounded-md border px-2 py-1 leading-tight transition-colors disabled:opacity-40 ${u === usual ? 'border-pine bg-pine text-white hover:bg-pine-dark' : 'border-line bg-white hover:border-pine hover:bg-mint'}`}>
-                <span className="whitespace-nowrap text-[10px] font-medium uppercase tracking-wide opacity-80">{unitName(med, u)}</span>
+                className={`num flex min-w-[58px] flex-col items-center rounded-md border px-1.5 py-1 leading-tight transition-colors disabled:opacity-40 ${u === usual ? 'border-pine bg-pine text-white hover:bg-pine-dark' : 'border-line bg-white hover:border-pine hover:bg-mint'}`}>
+                <span className="whitespace-nowrap text-[9px] font-medium uppercase opacity-80">{unitName(med, u)}</span>
                 <span className="text-sm font-semibold">{price ? money(price) : '-'}</span>
               </button>
             );
@@ -587,35 +589,41 @@ function MedicineRow({ med, i, on, saleType, sameStrength, qty, onQty, onPick, o
   );
 }
 
+// One line of the bill. Everything sits in a single row (name, unit, quantity, rate, amount) so ten or more medicines
+// fit on the screen at once; a long name simply wraps onto a second line.
+// (on a phone there is no room for columns: the name gets its own line and the controls sit below it)
+const BILL_COLS = 'flex flex-wrap items-center gap-x-1.5 gap-y-1 sm:grid sm:grid-cols-[minmax(0,1fr)_68px_90px_52px_62px_42px]';
 function BillLine({ l, hot, onChange, onRemove, onAlt, onDone }) {
   if (l.missing) {
     return <li className="flex items-center justify-between gap-3 bg-danger-soft p-3 text-sm text-danger"><span>{l.name} is no longer available</span><button onClick={onRemove} aria-label="Remove"><X className="h-4 w-4" /></button></li>;
   }
-  const where = [locationText(l.med), l.med.storage === 'fridge' && 'Keep in fridge'].filter(Boolean).join(' | ');
+  const where = locationText(l.med);
   return (
-    <li className={`px-2.5 py-2 ${hot ? 'bg-mint/60' : ''}`}>
-      {/* the whole medicine name is always shown, so it is clear exactly what was picked */}
-      <div className="flex items-start justify-between gap-3">
-        <p className="min-w-0 text-[13.5px] font-semibold leading-snug">{l.med.name}{l.med.requiresPrescription && <span className="ml-1.5 align-middle"><Badge tone="warn">Rx</Badge></span>}
-          {l.med.genericName && <span className="block text-[11px] font-normal text-muted">{l.med.genericName}{l.med.manufacturer ? ` | ${l.med.manufacturer}` : ''}</span>}</p>
-        <p className="num shrink-0 text-sm font-semibold">{money(l.total)}</p>
-      </div>
-      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <Select value={l.unitType} onChange={(e) => onChange({ unitType: e.target.value })} className="h-7 w-[78px] px-1.5 text-xs" aria-label="Unit">{[...new Set([...unitChoices(l.med), l.unitType])].map((u) => <option key={u} value={u}>{unitLabel(l.med, u)}</option>)}</Select>
-        <Button variant="secondary" size="sm" className="h-7 w-7 px-0" onClick={() => onChange({ qty: Math.max(1, l.qty - 1) })} aria-label="Less"><Minus className="h-3.5 w-3.5" /></Button>
-        <QtyBox id={`qty-${l.key}`} className="num h-7 w-12 px-1 text-center text-sm" value={l.qty}
-          onChange={(n) => onChange({ qty: n })}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onDone(); } }} aria-label="Quantity" />
-        <Button variant="secondary" size="sm" className="h-7 w-7 px-0" onClick={() => onChange({ qty: l.qty + 1 })} aria-label="More"><Plus className="h-3.5 w-3.5" /></Button>
-        <span className="num text-xs text-muted">x {money(l.unitPrice)} per {unitLabel(l.med, l.unitType).toLowerCase()}</span>
-        <span className="ml-auto flex items-center gap-0.5">
-          {l.med.genericName && <button className="rounded p-1 text-muted hover:bg-mint hover:text-ink" onClick={onAlt} title="Alternatives: other brands with the same generic name" aria-label="Alternatives"><ArrowLeftRight className="h-4 w-4" /></button>}
-          <button className="rounded p-1 text-muted hover:bg-danger-soft hover:text-danger" onClick={onRemove} aria-label="Remove"><Trash2 className="h-4 w-4" /></button>
+    <li className={`px-2.5 py-1 ${hot ? 'bg-mint/60' : ''}`}>
+      <div className={BILL_COLS}>
+        <p className="w-full min-w-0 text-[13px] font-semibold leading-tight sm:w-auto" title={[l.med.name, l.med.genericName, where].filter(Boolean).join(' | ')}>
+          {l.med.requiresPrescription && <span className="mr-1 text-[10px] font-bold text-amber" title="Prescription medicine">Rx</span>}
+          {l.med.name}
+          {l.med.storage === 'fridge' && <span className="ml-1 text-[10px] font-semibold text-pine-dark" title="Keep in the fridge">Fridge</span>}
+        </p>
+        <Select value={l.unitType} onChange={(e) => onChange({ unitType: e.target.value })} className="h-7 px-1 text-xs" aria-label="Unit">{[...new Set([...unitChoices(l.med), l.unitType])].map((u) => <option key={u} value={u}>{unitLabel(l.med, u)}</option>)}</Select>
+        <div className="flex items-center justify-center gap-0.5">
+          <button type="button" className="flex h-7 w-6 shrink-0 items-center justify-center rounded border border-line bg-white text-ink hover:bg-mint" onClick={() => onChange({ qty: Math.max(1, l.qty - 1) })} aria-label="Less"><Minus className="h-3.5 w-3.5 shrink-0" /></button>
+          <QtyBox id={`qty-${l.key}`} className="num h-7 w-9 px-0.5 text-center text-sm" value={l.qty}
+            onChange={(n) => onChange({ qty: n })}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onDone(); } }} aria-label="Quantity" />
+          <button type="button" className="flex h-7 w-6 shrink-0 items-center justify-center rounded border border-line bg-white text-ink hover:bg-mint" onClick={() => onChange({ qty: l.qty + 1 })} aria-label="More"><Plus className="h-3.5 w-3.5 shrink-0" /></button>
+        </div>
+        <span className="num ml-auto text-right text-xs text-muted sm:ml-0" title={`per ${unitLabel(l.med, l.unitType).toLowerCase()}`}>{money(l.unitPrice)}</span>
+        <span className="num text-right text-sm font-semibold">{money(l.total)}</span>
+        <span className="flex justify-end">
+          {l.med.genericName && <button className="rounded p-1 text-muted hover:bg-mint hover:text-ink" onClick={onAlt} title="Alternatives: other brands with the same generic name" aria-label="Alternatives"><ArrowLeftRight className="h-3.5 w-3.5" /></button>}
+          <button className="rounded p-1 text-muted hover:bg-danger-soft hover:text-danger" onClick={onRemove} aria-label="Remove"><Trash2 className="h-3.5 w-3.5" /></button>
         </span>
       </div>
-      {where && <p className="mt-0.5 text-[11px] text-pine-dark">{where}</p>}
-      {l.short && <p className="mt-0.5 text-xs font-medium text-danger">Only {stockText(l.stock.display)} available{l.stock.expired ? ` (${l.stock.expired} expired units cannot be sold)` : ''}</p>}
-      {!l.unitPrice && <p className="mt-0.5 text-xs font-medium text-danger">Price not set for this unit</p>}
+      {hot && where && <p className="text-[11px] font-medium text-pine-dark">{where}{l.med.storage === 'fridge' ? ' | keep in fridge' : ''}</p>}
+      {l.short && <p className="text-xs font-medium text-danger">Only {stockText(l.stock.display)} available{l.stock.expired ? ` (${l.stock.expired} expired units cannot be sold)` : ''}</p>}
+      {!l.unitPrice && <p className="text-xs font-medium text-danger">Price not set for this unit</p>}
     </li>
   );
 }

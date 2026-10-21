@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { render, screen, within, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 let mockPath = '/dashboard';
@@ -61,7 +61,7 @@ describe('menu and route guard', () => {
 describe('sidebar', () => {
   beforeEach(() => { localStorage.clear(); });
   it('the 3-bar button folds the menu to an icon strip; the strip\'s 3-bar button opens the full menu over the page; the choice is remembered', async () => {
-    role = 'owner'; mockPath = '/pos';
+    role = 'owner'; mockPath = '/dashboard';
     const user = userEvent.setup();
     shell(<p>PAGE</p>);
     await screen.findByText('PAGE');
@@ -74,6 +74,18 @@ describe('sidebar', () => {
     await user.click(railButton);
     expect(await screen.findByText('Finance & profit')).toBeInTheDocument();    // the full menu slides over the page
     expect(screen.getByText('PAGE')).toBeInTheDocument();
+  });
+  it('on the POS the menu starts folded (billing needs every pixel); elsewhere it starts open; an explicit choice wins everywhere', async () => {
+    role = 'owner'; mockPath = '/pos';
+    shell(<p>PAGE</p>);
+    await screen.findByText('PAGE');
+    expect(screen.queryByText('Finance & profit')).toBeNull();                  // POS: folded, nothing chosen yet
+    expect(screen.getAllByRole('button', { name: 'Open menu' }).some((b) => b.closest('aside'))).toBe(true);
+    cleanup();
+    localStorage.setItem('wp_sidebar_collapsed', '0');                          // the person chose "open"
+    shell(<p>PAGE</p>);
+    await screen.findByText('PAGE');
+    expect(await screen.findByText('Finance & profit')).toBeInTheDocument();    // so even the POS keeps it open
   });
   it('a folded menu stays folded on the next visit', async () => {
     localStorage.setItem('wp_sidebar_collapsed', '1');

@@ -59,9 +59,11 @@ function Shell({ children }) {
   const [open, setOpen] = useState(false);
   const [pwd, setPwd] = useState(false);
   // Desktop: the menu can be folded into a narrow icon strip to give the screen more room (remembered on this computer).
-  const [collapsed, setCollapsed] = useState(false);
-  useEffect(() => { try { setCollapsed(localStorage.getItem('wp_sidebar_collapsed') === '1'); } catch { /* storage blocked */ } }, []);
-  const fold = (v) => { setCollapsed(v); try { localStorage.setItem('wp_sidebar_collapsed', v ? '1' : '0'); } catch { /* storage blocked */ } };
+  const [pref, setPref] = useState(null); // null = nothing chosen yet
+  useEffect(() => { try { const v = localStorage.getItem('wp_sidebar_collapsed'); setPref(v === null ? null : v === '1'); } catch { /* storage blocked */ } }, []);
+  const fold = (v) => { setPref(v); try { localStorage.setItem('wp_sidebar_collapsed', v ? '1' : '0'); } catch { /* storage blocked */ } };
+  // Billing needs every pixel: unless the person has chosen, the menu starts folded on the POS and open everywhere else.
+  const collapsed = pref ?? pathname.startsWith('/pos');
 
   useEffect(() => { if (!loading && !user) router.replace('/login'); }, [loading, user, router]);
   useEffect(() => setOpen(false), [pathname]);
@@ -93,7 +95,7 @@ function Shell({ children }) {
     <div className={`min-h-screen lg:grid ${collapsed ? 'lg:grid-cols-[56px_1fr]' : 'lg:grid-cols-[240px_1fr]'}`}>
       {collapsed ? (
         // folded menu: icons only. The 3-bar button opens the full menu over the page, like on a phone.
-        <aside className="no-print hidden flex-col items-center border-r border-line bg-white lg:flex">
+        <aside className="no-print hidden flex-col items-center border-r border-line bg-white lg:sticky lg:top-0 lg:flex lg:h-screen">
           <button onClick={() => setOpen(true)} className="mt-3 rounded-md p-2 text-pine-dark hover:bg-mint" aria-label="Open menu" title="Open menu"><Menu className="h-6 w-6" /></button>
           <nav className="mt-2 flex flex-1 flex-col items-center gap-1 overflow-y-auto py-2" aria-label="Menu icons">
             {groups.flatMap((g) => g.items).map(({ href, label, icon: Icon }) => {
@@ -104,7 +106,7 @@ function Shell({ children }) {
           <button onClick={logout} className="mb-3 rounded-md p-2 text-muted hover:bg-mint hover:text-ink" aria-label="Sign out" title="Sign out"><LogOut className="h-[18px] w-[18px]" /></button>
         </aside>
       ) : (
-      <aside className="no-print hidden border-r border-line bg-white lg:flex lg:flex-col">
+      <aside className="no-print hidden border-r border-line bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
         <div className="flex h-14 items-center gap-2 border-b border-line pl-2 pr-5 font-semibold text-pine-dark"><button onClick={() => fold(true)} className="rounded-md p-2 text-pine-dark hover:bg-mint" aria-label="Fold menu" title="Fold menu to give the screen more room"><Menu className="h-5 w-5" /></button><span className="truncate">{settings.shopName}</span></div>
         {nav}
         <div className="border-t border-line p-3">

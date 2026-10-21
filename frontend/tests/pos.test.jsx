@@ -92,7 +92,7 @@ describe('POS counter', () => {
     await user.type(searchBox(), '8961000000001{Enter}');
     const line = screen.getByLabelText('Quantity').closest('li');
     expect(line).toHaveTextContent('Panadol 500mg');
-    expect(line).toHaveTextContent('x Rs 25 per strip');
+    expect(within(line).getByTitle('per strip')).toHaveTextContent('Rs 25');   // the rate column
     expect(within(line).getByLabelText('Unit')).toHaveValue('strip');
   });
 
@@ -254,13 +254,13 @@ describe('bill table', () => {
     try {
       await open();
       await user.type(searchBox(), '1*dexameth{Enter}');
-      expect(screen.getByText('Medicine, unit, quantity, rate')).toBeInTheDocument();
+      for (const heading of ['Medicine', 'Unit', 'Quantity', 'Rate', 'Amount']) expect(within(screen.getByLabelText('Quantity').closest('ul').previousElementSibling).getByText(heading)).toBeInTheDocument(); // real table columns
       const name = screen.getAllByText(/Very Long Name 100 Vials Pack/).find((el) => el.closest('li') && !el.closest('[role="listbox"]'));
       expect(name).toBeTruthy();
       expect(name.className).not.toMatch(/truncate/); // never cut short on the bill
       const line = name.closest('li');
-      expect(line).toHaveTextContent('Dexamethasone | Generic Pharma');
-      expect(line).toHaveTextContent('x Rs 25 per strip');
+      expect(name.getAttribute('title')).toContain('| Dexamethasone');           // generic name and place are in the tooltip, not taking up a second line
+      expect(within(line).getByTitle('per strip')).toHaveTextContent('Rs 25');
       expect(within(line).getByLabelText('Unit')).toHaveValue('strip');
       expect(within(line).getByLabelText('Quantity')).toHaveValue(1);
     } finally { CATALOG.length = 4; }
@@ -281,7 +281,9 @@ describe('shelf location', () => {
       expect(opts[0]).toHaveTextContent('Fridge');
       await user.keyboard('{Enter}');
       await user.keyboard('1{Enter}');                                            // 1 goli
-      expect(screen.getByText(/Keep in fridge/)).toBeInTheDocument(); // the bill line reminds where it is and how to store it
+      const line = screen.getByLabelText('Quantity').closest('li');
+      expect(line).toHaveTextContent('Rack C | Row 2 | Left');   // the medicine just added shows where to pick it
+      expect(line).toHaveTextContent(/keep in fridge/i);          // and how to store it
     } finally { for (const k of ['rack', 'row', 'side']) CATALOG[1][k] = ''; CATALOG[1].storage = 'room'; }
   });
 });
@@ -341,7 +343,7 @@ describe('keyboard only (no mouse needed)', () => {
     await user.keyboard('{F9}');
     expect(await screen.findByRole('alert')).toHaveTextContent('Add a medicine to the bill first');
     await user.type(searchBox(), '1*augm{Enter}');                      // a prescription medicine
-    expect(screen.getByText(/Tick "I have checked the prescription"/)).toBeInTheDocument(); // visible before pressing anything
+    expect(screen.getByText(/Rx medicines on this bill: prescription needed/)).toBeInTheDocument(); // the reason is already on screen before pressing anything
     await user.keyboard('{F9}');
     expect(await screen.findByRole('alert')).toHaveTextContent(/prescription/);
     expect(saleBodies).toHaveLength(0);
@@ -385,8 +387,7 @@ describe('choosing box, strip or tablet right in the search result', () => {
       await user.click(within(resultRows()[0]).getByRole('button', { name: /Tablet/ }));
       let line = screen.getByLabelText('Quantity').closest('li');
       expect(within(line).getByLabelText('Unit')).toHaveValue('unit');
-      expect(line).toHaveTextContent('x Rs 3 per tablet');
-      expect(line).toHaveTextContent('Rs 3');
+      expect(within(line).getByTitle('per tablet')).toHaveTextContent('Rs 3');   // one goli at the goli price
       expect(resultRows()).toHaveLength(0); // the list closes after choosing
 
       await user.type(searchBox(), 'unit test');
