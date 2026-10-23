@@ -87,18 +87,13 @@ export function parseQuery(raw) {
   return { qty: 1, text: String(raw ?? '').trim() };
 }
 
-// Which units make sense to sell for this medicine (a syrup bottle has no strips; a box of sachets has no strip either).
-//   10 strips x 10 tablets -> Box, Strip, Tablet      single bottle -> Unit only
-export function unitChoices(m) {
-  const strips = m.stripsPerBox || 1; const per = m.unitsPerStrip || 1;
-  const out = [];
-  if (strips * per > 1) out.push('box');
-  if (strips > 1 && per > 1) out.push('strip');
-  out.push('unit');
-  return out;
+// Every medicine can be given as a box, a strip (patta) or a single unit (goli), and the counter always asks in that same
+// order, so the hands learn it. (For a pack with no strips a strip is simply the whole pack: the price follows.)
+export function unitChoices() {
+  return ['box', 'strip', 'unit'];
 }
-// the unit used when the cashier just presses Enter
-export const defaultUnitFor = (m) => (unitChoices(m).includes('strip') ? 'strip' : 'unit');
+// the unit used when the cashier just presses Shift+Enter
+export const defaultUnitFor = () => 'strip';
 // "unit" is called by the name a pharmacist uses: a tablet/capsule when the pack is made of strips, otherwise just "Unit"
 export function unitLabel(m, unit) {
   if (unit === 'box') return 'Box';

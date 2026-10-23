@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import { money } from '@/lib/format';
 import { Field, Input } from '@/components/ui';
 
-export default function CustomerPicker({ customer, onChange, label = 'Customer (optional)', showBalance = true, placeholder = 'Search name or phone' }) {
+export default function CustomerPicker({ customer, onChange, label = 'Customer (optional)', showBalance = true, placeholder = 'Search name or phone', inputRef, onEscape }) {
   const [term, setTerm] = useState('');
   const [list, setList] = useState([]);
   useEffect(() => {
@@ -26,7 +26,11 @@ export default function CustomerPicker({ customer, onChange, label = 'Customer (
   return (
     <Field label={label}>
       <div className="relative">
-        <Input placeholder={placeholder} value={term} onChange={(e) => setTerm(e.target.value)} />
+        <Input ref={inputRef} placeholder={placeholder} value={term} onChange={(e) => setTerm(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && list[0]) { e.preventDefault(); onChange(list[0]); setTerm(''); setList([]); onEscape?.(); } // keyboard: Enter picks the first match
+            else if (e.key === 'Escape') { setTerm(''); setList([]); onEscape?.(); }
+          }} />
         {list.length > 0 && (
           <ul className="absolute z-20 mt-1 w-full rounded-md border border-line bg-white shadow-lg">
             {list.map((c) => <li key={c._id}><button type="button" className="flex w-full justify-between px-3 py-2 text-left hover:bg-mint" onClick={() => { onChange(c); setTerm(''); setList([]); }}><span>{c.name}</span><span className="text-xs text-muted">{c.phone}</span></button></li>)}

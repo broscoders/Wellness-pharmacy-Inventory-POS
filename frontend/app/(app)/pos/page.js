@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeftRight, Clock, Minus, Pause, Plus, Printer, RefreshCw, Search, Trash2, Volume2, VolumeX, WifiOff, X } from 'lucide-react';
+import { ArrowLeftRight, Clock, MapPin, Minus, Pause, Plus, Printer, RefreshCw, Search, Trash2, Volume2, VolumeX, WifiOff, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useCatalog } from '@/context/CatalogContext';
@@ -29,6 +29,9 @@ export default function PosPage() {
   const catalog = useCatalog();
   const { settings } = useSettings();
   const searchRef = useRef(null);
+  const customerRef = useRef(null);
+  const discountRef = useRef(null);
+  const cashRef = useRef(null);
   const listRef = useRef(null);
   const keySeq = useRef(0);
   const attempt = useRef({ sig: '', id: '' }); // idempotency key for the bill on screen
@@ -269,6 +272,9 @@ export default function PosPage() {
       if (heldOpen) return;
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); checkout(); return; } // works on laptops where F-keys need Fn
       if (e.key === 'F2') { e.preventDefault(); searchRef.current?.focus(); searchRef.current?.select(); }
+      else if (e.key === 'F3') { e.preventDefault(); customerRef.current?.focus(); }
+      else if (e.key === 'F7') { e.preventDefault(); discountRef.current?.focus(); discountRef.current?.select(); }
+      else if (e.key === 'F10') { e.preventDefault(); cashRef.current?.focus(); cashRef.current?.select(); }
       else if (e.key === 'F4') { e.preventDefault(); const el = document.getElementById(`qty-${lastKey ?? cart[cart.length - 1]?.key}`); el?.focus(); el?.select(); }
       else if (e.key === 'F8') { e.preventDefault(); holdBill(); }
       else if (e.key === 'F9') { e.preventDefault(); checkout(); }
@@ -292,27 +298,30 @@ export default function PosPage() {
   return (
     <div className="-m-2 flex flex-col gap-2 p-2 lg:-m-3 lg:p-3 xl:h-[calc(100dvh-1.5rem)]">
       {/* top bar: one slim row so the medicine list gets the height */}
-      <div className="no-print flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
+      <div className="no-print flex flex-wrap items-center justify-between gap-x-3 gap-y-1 xl:flex-nowrap">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5 xl:flex-nowrap">
           <h1 className="text-lg font-semibold tracking-tight">POS / Billing</h1>
           <p className="flex items-center gap-1.5 text-xs text-muted">
             {!catalog?.ready ? 'Loading medicines...' : offline
               ? <span className="inline-flex items-center gap-1 font-medium text-amber"><WifiOff className="h-3.5 w-3.5" /> {catalog.status.error}: using the saved list ({catalog.count.toLocaleString()} medicines)</span>
-              : <span>{catalog.count.toLocaleString()} medicines ready{secondsAgo !== null && !catalog.status.fromCache ? ` | updated ${secondsAgo < 5 ? 'just now' : `${secondsAgo}s ago`}` : ''}</span>}
+              : <span className="whitespace-nowrap">{catalog.count.toLocaleString()} medicines ready{secondsAgo !== null && !catalog.status.fromCache ? ` | updated ${secondsAgo < 5 ? 'just now' : `${secondsAgo}s ago`}` : ''}</span>}
             {catalog?.ready && <button onClick={() => catalog.refresh()} className="rounded p-1 text-muted hover:bg-mint hover:text-ink" title="Reload the medicine list now" aria-label="Reload medicine list"><RefreshCw className="h-3.5 w-3.5" /></button>}
+          </p>
+          <p className="hidden min-w-0 flex-1 items-center gap-x-2 truncate text-[11px] text-muted xl:flex" data-testid="key-legend">
+            <span><Kbd>F9</Kbd> bill</span><span><Kbd>F7</Kbd> discount</span><span><Kbd>F3</Kbd> customer</span><span><Kbd>F10</Kbd> cash</span><span><Kbd>F8</Kbd> hold</span><span><Kbd>F4</Kbd> qty</span><span><Kbd>F2</Kbd> search</span>
           </p>
           {useShifts && !shiftOpen && <Link href="/shifts" className="rounded-full bg-amber-soft px-2.5 py-0.5 text-xs font-medium text-amber hover:underline" title="Today's cash cannot be checked at closing without an open shift">No shift open - open it</Link>}
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <label className="hidden items-center gap-1.5 text-xs text-muted sm:flex"><input type="checkbox" checked={prefs.autoPrint} onChange={(e) => setPref({ autoPrint: e.target.checked })} /> Print after sale</label>
+          <label className="hidden items-center gap-1.5 text-xs text-muted sm:flex" title="Print the receipt after every sale"><input type="checkbox" checked={prefs.autoPrint} onChange={(e) => setPref({ autoPrint: e.target.checked })} /> Print</label>
           <Button variant="ghost" size="sm" onClick={() => setPref({ sound: !prefs.sound })} title={prefs.sound ? 'Mute counter sounds' : 'Turn counter sounds on'} aria-label="Toggle sound">{prefs.sound ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}</Button>
           <Button variant="secondary" size="sm" onClick={holdBill} disabled={!cart.length} title="Put this bill aside (F8)"><Pause className="h-4 w-4" /> Hold</Button>
           <Button variant="secondary" size="sm" onClick={() => setHeldOpen(true)} disabled={!held.length} title="Bills put aside"><Clock className="h-4 w-4" /> Held ({held.length})</Button>
-          <Select value={saleType} onChange={(e) => setSaleType(e.target.value)} className="h-8 w-32 text-[13px]" aria-label="Sale type"><option value="retail">Retail</option><option value="wholesale">Wholesale</option></Select>
+          <Select value={saleType} onChange={(e) => setSaleType(e.target.value)} className="h-8 w-[104px] text-[13px]" aria-label="Sale type"><option value="retail">Retail</option><option value="wholesale">Wholesale</option></Select>
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[minmax(270px,0.55fr)_minmax(0,1.7fr)_minmax(280px,320px)]">
+      <div className="grid min-h-0 flex-1 gap-2 xl:grid-cols-[minmax(285px,0.6fr)_minmax(0,1.7fr)_minmax(280px,320px)]">
         {/* LEFT: find medicines */}
         <Card className="no-print flex min-h-0 flex-col">
           <div className="space-y-1.5 border-b border-line p-2.5">
@@ -322,7 +331,7 @@ export default function PosPage() {
                 onChange={(e) => setTerm(e.target.value)} onKeyDown={onSearchKey} aria-label="Search medicine" />
               {(parsed.qty > 1 || parsed.unit) && parsed.text && <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded bg-mint px-2 py-0.5 text-xs font-semibold text-pine-dark">Qty {parsed.qty}{parsed.unit ? ` ${parsed.unit === 'unit' ? 'loose' : parsed.unit}` : ''}</span>}
             </div>
-            <p className="hidden truncate text-[11px] text-muted xl:block"><Kbd>Enter</Kbd> on a medicine asks how many: <b>goli</b>, then <b>patta</b>, then <b>box</b> (type a number or <Kbd>Up</Kbd> = +1; <b>0</b> + <Kbd>Enter</Kbd> = next) &middot; <Kbd>Shift+Enter</Kbd> = 1 strip now &middot; <Kbd>F9</Kbd> or <Kbd>Ctrl+Enter</Kbd> complete</p>
+            <p className="hidden truncate text-[11px] text-muted xl:block"><Kbd>Enter</Kbd> picks the medicine, then answer <b>how many goli</b>, <b>patta</b>, <b>box</b> (<Kbd>Up</Kbd> +1, 0 + <Kbd>Enter</Kbd> next) &middot; <Kbd>Shift+Enter</Kbd> 1 strip &middot; <Kbd>Ctrl+Enter</Kbd> bill</p>
           </div>
 
           <div ref={listRef} className="max-h-[46vh] min-h-0 flex-1 overflow-y-auto xl:max-h-none" role="listbox" aria-label="Medicines">
@@ -392,7 +401,7 @@ export default function PosPage() {
                   <span>Subtotal {money(subtotal)}</span>
                   {can('sales:discount') && (
                     <label className="flex items-center gap-1.5">Discount
-                      <input className="num h-7 w-14 rounded border border-white/30 bg-white/10 px-2 text-right text-white placeholder:text-white/40 focus:border-white focus:outline-none" value={discountText} onChange={(e) => setDiscountText(e.target.value)} placeholder="0" inputMode="decimal" aria-label="Discount percent" />
+                      <input ref={discountRef} className="num h-7 w-14 rounded border border-white/30 bg-white/10 px-2 text-right text-white placeholder:text-white/40 focus:border-white focus:outline-none" value={discountText} onChange={(e) => setDiscountText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); searchRef.current?.focus(); } }} placeholder="0" inputMode="decimal" aria-label="Discount percent" />
                       <span>%</span>
                       {disc > 0 && <span className="font-medium text-white">= {money(disc)}</span>}
                     </label>
@@ -402,10 +411,10 @@ export default function PosPage() {
 
             </div>
             <div className="max-h-[34vh] space-y-2 overflow-y-auto pr-0.5 xl:max-h-none xl:min-h-0 xl:flex-1">
-              <CustomerPicker customer={customer} onChange={setCustomer} label="" placeholder="Customer (optional, needed for udhaar)" />
+              <CustomerPicker customer={customer} onChange={setCustomer} label="" placeholder="Customer (optional, needed for udhaar)" inputRef={customerRef} onEscape={() => searchRef.current?.focus()} />
               <div className="flex items-center gap-2">
                 <span className="w-10 text-sm font-medium">Cash</span>
-                <Input className="num h-9 flex-1 text-right text-base" type="number" min="0" value={pay.cash} onChange={(e) => setPay({ ...pay, cash: e.target.value })} placeholder={total ? `${total} (exact)` : '0'} aria-label="Cash received" />
+                <Input ref={cashRef} className="num h-9 flex-1 text-right text-base" type="number" min="0" value={pay.cash} onChange={(e) => setPay({ ...pay, cash: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); checkout(); } else if (e.key === 'Escape') { e.preventDefault(); searchRef.current?.focus(); } }} placeholder={total ? `${total} (exact)` : '0'} aria-label="Cash received" />
               </div>
               <div className="flex flex-wrap items-center gap-1 pl-12">
                 {total > 0 && <button type="button" className="rounded border border-line bg-white px-2 py-0.5 text-xs font-medium hover:bg-mint" onClick={() => setPay({ ...NO_PAY, cash: String(total) })}>Exact</button>}
@@ -547,6 +556,8 @@ function Kbd({ children }) {
 }
 
 // One medicine in the find list: what it is, what it costs, what is left, when it expires.
+const shortPrice = (n) => (Number.isInteger(n) ? n.toLocaleString('en-US') : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+
 // One medicine in the search results. The cashier picks WHAT to give by pressing Box, Strip or Tablet: each button shows
 // that unit's price. Clicking the name (or pressing Enter) gives the usual unit (strip, or a single unit for syrups etc).
 function MedicineRow({ med, i, on, saleType, sameStrength, qty, onQty, onPick, onHover }) {
@@ -559,31 +570,32 @@ function MedicineRow({ med, i, on, saleType, sameStrength, qty, onQty, onPick, o
   else if (s.isLow) stockBadge = <Badge tone="warn">Low</Badge>;
   return (
     <li data-i={i} role="option" aria-selected={on} aria-disabled={s.isOut}>
-      <div onMouseMove={onHover} className={`flex flex-wrap items-stretch gap-x-2 gap-y-1 border-b border-line px-3 py-1.5 ${on ? 'bg-mint' : 'hover:bg-paper'} ${s.isOut ? 'opacity-70' : ''}`}>
+      <div onMouseMove={onHover} className={`flex flex-wrap items-stretch gap-x-1.5 gap-y-1 border-b border-line px-2.5 py-1.5 ${on ? 'bg-mint' : 'hover:bg-paper'} ${s.isOut ? 'opacity-70' : ''}`}>
         <button type="button" onClick={() => onPick()} className="min-w-[200px] flex-1 text-left" title={`Add ${unitLabel(med, usual)}`}>
           <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5"><span className="font-medium">{med.name}</span>{med.requiresPrescription && <Badge tone="warn">Rx</Badge>}{med.storage === 'fridge' && <Badge tone="good">Fridge</Badge>}{sameStrength === true && <Badge tone="good">Same strength</Badge>}{sameStrength === false && <Badge>Different strength</Badge>}</span>
           <span className="block truncate text-xs text-muted">{[med.genericName, med.manufacturer].filter(Boolean).join(' | ') || '\u00a0'}</span>
-          {locationText(med) && <span className="block truncate text-xs font-medium text-pine-dark">{locationText(med)}</span>}
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted">{stockBadge}{!s.isOut && <span>{stockText(s.display)}{s.nearestExpiry ? ` | exp ${dateOnly(s.nearestExpiry).slice(3)}` : ''}</span>}</span>
         </button>
-        <div className="flex shrink-0 items-center gap-0.5 self-center" title="How many to add">
-          <button type="button" className="h-7 w-6 rounded border border-line bg-white text-sm hover:bg-mint" onClick={() => onQty(Math.max(1, qty - 1))} aria-label={`Fewer ${med.name}`}>-</button>
-          <QtyBox className="num h-7 w-10 px-1 text-center text-sm" value={qty} aria-label={`Quantity to add of ${med.name}`}
+        <div className="flex shrink-0 items-center self-center" title="How many to add">
+          <button type="button" className="h-7 w-5 rounded border border-line bg-white text-sm hover:bg-mint" onClick={() => onQty(Math.max(1, qty - 1))} aria-label={`Fewer ${med.name}`}>-</button>
+          <QtyBox className="num h-7 w-8 px-0.5 text-center text-sm" value={qty} aria-label={`Quantity to add of ${med.name}`}
             onChange={onQty} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onPick(undefined, true); } }} />
-          <button type="button" className="h-7 w-6 rounded border border-line bg-white text-sm hover:bg-mint" onClick={() => onQty(qty + 1)} aria-label={`More ${med.name}`}>+</button>
+          <button type="button" className="h-7 w-5 rounded border border-line bg-white text-sm hover:bg-mint" onClick={() => onQty(qty + 1)} aria-label={`More ${med.name}`}>+</button>
         </div>
-        <div className="flex flex-wrap items-center gap-1" role="group" aria-label={`Choose unit for ${med.name}`}>
+        <div className="flex flex-wrap items-center gap-0.5" role="group" aria-label={`Choose unit for ${med.name}`}>
           {unitChoices(med).map((u) => {
             const price = sellPrice(med, saleType, u);
             return (
               <button key={u} type="button" disabled={!price} onClick={() => onPick(u)} title={price ? `Add ${qty} x ${unitName(med, u).toLowerCase()}` : 'No price set'}
-                className={`num flex min-w-[58px] flex-col items-center rounded-md border px-1.5 py-1 leading-tight transition-colors disabled:opacity-40 ${u === usual ? 'border-pine bg-pine text-white hover:bg-pine-dark' : 'border-line bg-white hover:border-pine hover:bg-mint'}`}>
-                <span className="whitespace-nowrap text-[9px] font-medium uppercase opacity-80">{unitName(med, u)}</span>
-                <span className="text-sm font-semibold">{price ? money(price) : '-'}</span>
+                className={`num flex min-w-[40px] flex-col items-center rounded border px-1 py-0.5 leading-none transition-colors disabled:opacity-40 ${u === usual ? 'border-pine bg-pine text-white hover:bg-pine-dark' : 'border-line bg-white hover:border-pine hover:bg-mint'}`}>
+                <span className="whitespace-nowrap text-[8px] font-medium uppercase opacity-80">{unitName(med, u)}</span>
+                <span className="mt-0.5 text-xs font-semibold">{price ? shortPrice(price) : '-'}</span>
               </button>
             );
           })}
         </div>
+        {/* where to pick it from (or a reminder to record it) */}
+        <p className={`flex basis-full items-center gap-1 text-[11px] ${locationText(med) ? 'font-medium text-pine-dark' : 'italic text-muted'}`} data-testid="where"><MapPin className="h-3 w-3 shrink-0" />{locationText(med) || 'Location not set'}</p>
       </div>
     </li>
   );

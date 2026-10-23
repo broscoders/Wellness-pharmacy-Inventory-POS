@@ -187,14 +187,11 @@ test('an address maps to the menu item that owns it (longest match)', () => {
   assert.equal(pageFor('/login', items), undefined);
 });
 
-test('units that make sense for each kind of pack', () => {
+test('every medicine is asked in the same three units, in the same order', () => {
   const m = (stripsPerBox, unitsPerStrip, extra = {}) => ({ stripsPerBox, unitsPerStrip, ...extra });
-  assert.deepEqual(unitChoices(m(10, 10)), ['box', 'strip', 'unit']);   // tablets
-  assert.deepEqual(unitChoices(m(10, 1)), ['box', 'unit']);              // box of 10 sachets
-  assert.deepEqual(unitChoices(m(1, 12)), ['box', 'unit']);              // one pack of 12 pieces
-  assert.deepEqual(unitChoices(m(1, 1)), ['unit']);                      // a single bottle
+  for (const pack of [m(10, 10), m(10, 1), m(1, 12), m(1, 1)]) assert.deepEqual(unitChoices(pack), ['box', 'strip', 'unit']);
   assert.equal(defaultUnitFor(m(10, 10)), 'strip');
-  assert.equal(defaultUnitFor(m(1, 1)), 'unit');
+  assert.equal(defaultUnitFor(m(1, 1)), 'strip');
   assert.equal(unitLabel(m(10, 10, { dosageForm: 'Tablet' }), 'unit'), 'Tablet');
   assert.equal(unitLabel(m(10, 10, { dosageForm: 'Capsule' }), 'unit'), 'Capsule');
   assert.equal(unitLabel(m(1, 1, { dosageForm: 'Syrup' }), 'unit'), 'Unit');

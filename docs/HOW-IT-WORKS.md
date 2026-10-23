@@ -14,8 +14,9 @@ Now: when the POS opens, the full medicine list (names, generic names, prices, s
 The server still has the last word: when a bill is completed, the server re-checks stock, expiry and prices. An old screen can never sell expired or missing stock.
 
 ## The POS screen (three parts, built to show 10+ medicines at once)
-- **Left: find.** Empty until you type or scan; then only the matches, each with its quantity box and Box / Strip (patta) / Tablet (goli) buttons. Enter asks the "how many?" questions here.
+- **Left: find.** Empty until you type or scan; then only the matches. Each match shows its quantity box, small Box / Strip (patta) / Unit (goli) price buttons and, at the bottom, where it is kept (rack, row, side) or "Location not set" as a reminder to record it. **Every** medicine is asked in the same three units, goli, then patta, then box, so the hands always do the same thing. Enter asks the "how many?" questions here.
 - **Middle: the bill.** A real table: Medicine, Unit, Quantity, Rate, Amount, one slim line per medicine (a very long name wraps onto a second line). On a 1366x630 laptop screen 12 medicines are visible at once, on a 1280x560 screen 10, and on a bigger screen all of them; beyond that the bill scrolls on its own, the rest of the page never moves. A medicine with a prescription mark shows a small **Rx**, a fridge item **Fridge**; the medicine just added also shows where to pick it from (rack, row, side).
+- **Header:** next to "updated just now" a short key list reminds the cashier of the keys (F9 bill, F7 discount, F3 customer, F10 cash, F8 hold, F4 quantity, F2 search).
 - **Right: pay.** The **Total** is at the top, then customer, cash (with quick buttons) and, only when needed, the prescription check. The **Complete sale** button is always at the bottom.
 - The side menu starts **folded** on the POS (3-bar button to open it over the page), and open on every other page, unless you choose otherwise. Windows (receipt, forms) are never taller than the screen: the middle scrolls and the buttons stay in view.
 - On a phone the three parts stack one under the other.
@@ -30,7 +31,10 @@ The server still has the last word: when a bill is completed, the server re-chec
 | Just start typing | The letters go to the search box from anywhere on the POS |
 | `3*pana` then Enter | Add 3 of the first match. `10t*pana` = 10 tablets, `2s*pana` = 2 strips, `1b*pana` = 1 box |
 | **F2** | Jump back to the search box |
+| **F3** | Jump to the customer box (type a name or phone, **Enter** picks the first match, **Esc** goes back to the search) |
 | **F4** | Edit the quantity of the last added medicine |
+| **F7** | Jump to the **discount** box: type the percent (5 = 5%), **Enter** goes back to the search |
+| **F10** | Jump to the **cash received** box: type the amount and press **Enter** to complete the sale |
 | **F8** | Hold this bill (serve another customer first) |
 | **F9** or **Ctrl+Enter** | Complete the sale (Ctrl+Enter is for laptops where F9 needs the Fn key). If the bill cannot be completed, the screen says why (for example: tick the prescription check, choose a customer for udhaar) |
 | **Enter** on the receipt window | Start a new sale (**P** prints) |

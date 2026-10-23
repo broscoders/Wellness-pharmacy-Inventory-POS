@@ -370,11 +370,11 @@ describe('choosing box, strip or tablet right in the search result', () => {
       await open();
       await user.type(searchBox(), 'unit test');
       const row = within(screen.getByRole('listbox')).getAllByRole('option')[0];
-      expect(within(row).getByRole('button', { name: /Box.*Rs 245/ })).toBeInTheDocument();
-      expect(within(row).getByRole('button', { name: /Strip.*Rs 25/ })).toBeInTheDocument();
-      expect(within(row).getByRole('button', { name: /Tablet.*Rs 3/ })).toBeInTheDocument(); // "Tablet" because it is a tablet
-      expect(within(row).getByRole('button', { name: /Strip \(patta\).*Rs 25/ })).toBeInTheDocument();  // the words counter staff use
-      expect(within(row).getByRole('button', { name: /Tablet \(goli\).*Rs 3/ })).toBeInTheDocument();
+      expect(within(row).getByRole('button', { name: /Box.*245/ })).toBeInTheDocument();
+      expect(within(row).getByRole('button', { name: /Strip.*25/ })).toBeInTheDocument();
+      expect(within(row).getByRole('button', { name: /Tablet.*3/ })).toBeInTheDocument(); // "Tablet" because it is a tablet
+      expect(within(row).getByRole('button', { name: /Strip \(patta\).*25/ })).toBeInTheDocument();  // the words counter staff use
+      expect(within(row).getByRole('button', { name: /Tablet \(goli\).*3/ })).toBeInTheDocument();
     } finally { cleanup(); }
   });
 
@@ -414,7 +414,7 @@ describe('choosing box, strip or tablet right in the search result', () => {
     } finally { cleanup(); }
   });
 
-  it('a single bottle only offers Unit (no pointless Box / Strip buttons)', async () => {
+  it('a bottle gets the same three buttons: Box, Strip and Unit (so the hands always do the same thing)', async () => {
     stuff();
     try {
       const user = userEvent.setup();
@@ -422,15 +422,11 @@ describe('choosing box, strip or tablet right in the search result', () => {
       await user.type(searchBox(), 'single bottle');
       const row = resultRows()[0];
       const unitButtons = within(within(row).getByRole('group', { name: /Choose unit/ })).getAllByRole('button');
-      expect(unitButtons).toHaveLength(1); // only "Unit"
-      expect(within(row).getByRole('button', { name: /Unit.*Rs 120/ })).toBeInTheDocument();
-      await user.keyboard('{Enter}');                       // one unit only, so a single question
-      expect(await screen.findByTestId('ask-qty')).toHaveTextContent('How many Unit?');
-      await user.keyboard('2{Enter}');
-      expect(within(screen.getByLabelText('Quantity').closest('li')).getByLabelText('Unit')).toHaveValue('unit');
-      expect(screen.getByLabelText('Quantity')).toHaveValue(2);
+      expect(unitButtons.map((b) => b.textContent)).toEqual([expect.stringContaining('Box'), expect.stringContaining('Strip'), expect.stringContaining('Unit')]);
+      expect(within(row).getByRole('button', { name: /Unit.*120/ })).toBeInTheDocument();
     } finally { cleanup(); }
   });
+
 });
 
 describe('how many: set the quantity on the result before choosing the unit', () => {
@@ -655,7 +651,7 @@ describe('the keyboard questions after Enter: goli, then patta, then box', () =>
     } finally { CATALOG.length = 4; }
   });
 
-  it('a medicine with no strips (a single bottle) asks one question only', async () => {
+  it('a bottle is asked the same three questions as tablets, and a number answers the one it is on', async () => {
     CATALOG.push(med('w2', 'Wizard Syrup', { stripsPerBox: 1, unitsPerStrip: 1, dosageForm: 'Syrup', salePrice: { box: 0, strip: 0, unit: 120 } }));
     try {
       const user = userEvent.setup();
@@ -663,11 +659,16 @@ describe('the keyboard questions after Enter: goli, then patta, then box', () =>
       await user.type(searchBox(), 'wizard syrup');
       await user.keyboard('{Enter}');
       expect(ask()).toHaveTextContent('How many Unit?');
-      await user.keyboard('{Enter}');                                          // 0 and nothing else to ask: nothing added
+      await user.keyboard('{Enter}');                                          // none -> the strip question is asked too
+      expect(ask()).toHaveTextContent('How many Strip (patta)?');
+      await user.keyboard('{Enter}');
+      expect(ask()).toHaveTextContent('How many Box?');
+      await user.keyboard('{Enter}');                                          // nothing anywhere: nothing is added
       expect(screen.queryByTestId('ask-qty')).toBeNull();
       expect(lineUnits()).toEqual([]);
     } finally { CATALOG.length = 4; }
   });
+
 
   it('the mouse still works: pressing a unit button adds it at once, without any question', async () => {
     addTabs();
@@ -679,6 +680,63 @@ describe('the keyboard questions after Enter: goli, then patta, then box', () =>
       expect(screen.queryByTestId('ask-qty')).toBeNull();
       expect(lineUnits()).toEqual(['strip']);
     } finally { CATALOG.length = 4; }
+  });
+});
+
+describe('location under every result, and keys for everything', () => {
+  it('every result ends with where to find it, or a reminder that it is not recorded', async () => {
+    const user = userEvent.setup();
+    Object.assign(CATALOG[0], { rack: 'A', row: '1', side: 'Left' });
+    try {
+      await open();
+      await user.type(searchBox(), 'mg');                       // Augmentin (no place), Brufen, Panadol (A / 1 / Left)
+      const rows = resultRows();
+      const places = rows.map((r) => within(r).getByTestId('where').textContent);
+      expect(places).toContain('Rack A | Row 1 | Left');
+      expect(places).toContain('Location not set');
+    } finally { for (const k of ['rack', 'row', 'side']) CATALOG[0][k] = ''; }
+  });
+
+  it('the shortcut list sits in the header, next to the status', async () => {
+    await open();
+    const legend = screen.getByTestId('key-legend');
+    for (const word of ['search', 'pick', 'customer', 'qty', 'discount', 'cash', 'hold', 'bill']) expect(legend).toHaveTextContent(word);
+  });
+
+  it('F7 jumps to the discount box, Enter takes you back to the search, and the percent is applied', async () => {
+    const user = userEvent.setup();
+    await open();
+    await user.type(searchBox(), '4*pana{Enter}');             // Rs 100
+    await user.keyboard('{F7}');
+    expect(screen.getByLabelText('Discount percent')).toHaveFocus();
+    await user.keyboard('5{Enter}');
+    expect(searchBox()).toHaveFocus();
+    expect(screen.getAllByText('Rs 95').length).toBeGreaterThan(0);
+  });
+
+  it('F3 jumps to the customer box; F10 to the cash box where Enter completes the sale', async () => {
+    const user = userEvent.setup();
+    await open();
+    await user.type(searchBox(), '1*pana{Enter}');
+    await user.keyboard('{F3}');
+    expect(screen.getByPlaceholderText(/Customer \(optional/)).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(searchBox()).toHaveFocus();
+    await user.keyboard('{F10}');
+    expect(screen.getByLabelText('Cash received')).toHaveFocus();
+    await user.keyboard('50{Enter}');                          // Rs 50 given for a Rs 25 bill: change is due, the bill is made
+    await screen.findByText('Sale completed');
+    expect(saleBodies).toHaveLength(1);
+    expect(saleBodies[0].payments).toEqual([{ method: 'cash', amount: 50 }]);
+  });
+
+  it('F10 then Enter with a bill that cannot be completed says why instead of doing nothing', async () => {
+    const user = userEvent.setup();
+    await open();
+    await user.type(searchBox(), '1*augm{Enter}');             // a prescription medicine, not yet confirmed
+    await user.keyboard('{F10}{Enter}');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/prescription/);
+    expect(saleBodies).toHaveLength(0);
   });
 });
 
