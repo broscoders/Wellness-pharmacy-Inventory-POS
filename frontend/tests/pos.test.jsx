@@ -700,7 +700,7 @@ describe('location under every result, and keys for everything', () => {
   it('the shortcut list sits in the header, next to the status', async () => {
     await open();
     const legend = screen.getByTestId('key-legend');
-    for (const word of ['search', 'pick', 'customer', 'qty', 'discount', 'cash', 'hold', 'bill']) expect(legend).toHaveTextContent(word);
+    for (const word of ['bill', 'discount', 'customer', 'cash', 'hold', 'qty', 'search']) expect(legend).toHaveTextContent(word);
   });
 
   it('F7 jumps to the discount box, Enter takes you back to the search, and the percent is applied', async () => {
