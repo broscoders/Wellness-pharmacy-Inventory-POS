@@ -60,8 +60,8 @@ export function PageHeader({ title, subtitle, actions }) {
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-        {subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}
+        <h1 className="text-2xl font-extrabold tracking-tight text-ink">{title}</h1>
+        {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
@@ -86,7 +86,7 @@ export function Modal({ open, onClose, title, children, width = 'max-w-lg', foot
 }
 
 export function Spinner({ label = 'Loading...' }) {
-  return <div className="flex items-center justify-center gap-2 py-12 text-muted"><Loader2 className="h-5 w-5 animate-spin" />{label}</div>;
+  return <div className="mx-auto max-w-5xl space-y-3 py-6" role="status" aria-label={label}><div className="skeleton h-24" /><div className="grid grid-cols-2 gap-3 xl:grid-cols-4"><div className="skeleton h-24" /><div className="skeleton h-24" /><div className="skeleton h-24" /><div className="skeleton h-24" /></div><div className="skeleton h-64" /><span className="sr-only">{label}</span></div>;
 }
 
 export function Empty({ children }) {
@@ -101,11 +101,11 @@ export function ErrorNote({ error }) {
 export function Table({ head, children }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
+      <table className="tbl w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-line text-[13px] text-muted">
+          <tr className="border-b border-line">
             {head.map((h, i) => (
-              <th key={i} className={`px-3 py-2 font-medium ${h.right ? 'text-right' : ''}`}>{h.label ?? h}</th>
+              <th key={i} className={`px-3 py-3 font-semibold ${h.right ? 'text-right' : ''}`}>{h.label ?? h}</th>
             ))}
           </tr>
         </thead>

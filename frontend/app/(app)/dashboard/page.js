@@ -9,6 +9,29 @@ import { money, dateTime } from '@/lib/format';
 import { Badge, Card, ErrorNote, PageHeader, Spinner, Table } from '@/components/ui';
 import { useSettings } from '@/context/SettingsContext';
 
+function Hero({ name, shop, d }) {
+  const h = new Date().getHours();
+  const greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const alerts = (d.lowStock || 0) + (d.nearExpiry30 || 0) + (d.expired || 0);
+  return (
+    <section className="hero mb-6 rounded-3xl p-6 text-white shadow-xl shadow-pine/20 lg:p-8">
+      <div className="flex flex-wrap items-end justify-between gap-6">
+        <div>
+          <p className="flex items-center gap-2 text-sm font-medium text-emerald-100/80"><i className="live-dot" /> {today}</p>
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight lg:text-4xl">{greet}, <span className="text-gradient">{name?.split(' ')[0] || 'there'}</span></h1>
+          <p className="mt-1 text-emerald-50/75">Dashboard &middot; {shop} &middot; today at a glance</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <div className="glass rounded-2xl px-5 py-3"><p className="text-xs uppercase tracking-wider text-emerald-100/70">Today&apos;s sales</p><p className="num text-2xl font-extrabold">{money(d.todaySales)}</p></div>
+          <div className="glass rounded-2xl px-5 py-3"><p className="text-xs uppercase tracking-wider text-emerald-100/70">Needs attention</p><p className="num text-2xl font-extrabold">{alerts}</p></div>
+          <Link href="/pos" className="flex items-center gap-2 self-stretch rounded-2xl bg-white px-6 font-bold text-pine-dark shadow-lg transition hover:scale-[1.03]"><ShoppingBag className="h-5 w-5" /> Open POS</Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Stat({ icon: Icon, label, value, tone = 'default', note }) {
   const tones = { default: 'text-white brand-gradient shadow-md shadow-pine/30', warn: 'text-white bg-gradient-to-br from-amber-400 to-orange-500 shadow-md shadow-orange-300/40', bad: 'text-white bg-gradient-to-br from-rose-500 to-red-600 shadow-md shadow-red-300/40' };
   return (
@@ -26,7 +49,8 @@ function Stat({ icon: Icon, label, value, tone = 'default', note }) {
 }
 
 export default function DashboardPage() {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
+  const { settings } = useSettings();
   const [d, setD] = useState(null);
   const [mode, setMode] = useState('');
   const [error, setError] = useState('');
@@ -50,7 +74,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      <PageHeader title="Dashboard" subtitle="Today at a glance" />
+      <Hero name={user?.name} shop={settings.shopName} d={d} />
       <BackupReminder />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat icon={ShoppingBag} label="Today's sales" value={money(d.todaySales)} note={`${d.todaySalesCount} invoices`} />
@@ -68,20 +92,20 @@ export default function DashboardPage() {
         <div className="mt-5 grid gap-4 xl:grid-cols-[1.8fr_1fr]">
           <Card className="p-4">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <div><h2 className="font-semibold">Sales and profit</h2><p className="text-xs text-muted"><span className="mr-3 inline-flex items-center gap-1"><i className="inline-block h-2.5 w-2.5 rounded-sm bg-pine" /> Net sales</span><span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-2.5 rounded-full bg-amber" /> Gross profit</span></p></div>
-              <div className="flex gap-1">{[7, 14, 30].map((n) => <button key={n} onClick={() => setSpan(n)} className={`rounded-md border px-3 py-1 text-sm ${span === n ? 'border-pine bg-mint font-medium text-pine-dark' : 'border-line text-muted hover:bg-mint'}`}>{n} days</button>)}</div>
+              <div><h2 className="text-lg font-bold">Sales and profit</h2><p className="text-xs text-muted"><span className="mr-3 inline-flex items-center gap-1"><i className="inline-block h-2.5 w-2.5 rounded-sm bg-pine" /> Net sales</span><span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-2.5 rounded-full bg-amber" /> Gross profit</span></p></div>
+              <div className="flex gap-1">{[7, 14, 30].map((n) => <button key={n} onClick={() => setSpan(n)} className={`rounded-full border px-4 py-1 text-sm ${span === n ? 'brand-gradient border-transparent font-semibold text-white shadow' : 'border-line text-muted hover:bg-mint'}`}>{n} days</button>)}</div>
             </div>
             <SalesChart days={trend.days} />
           </Card>
           <Card className="p-4">
-            <h2 className="mb-3 font-semibold">Best sellers (30 days)</h2>
+            <h2 className="mb-4 text-lg font-bold">Best sellers (30 days)</h2>
             {trend.topMedicines.length === 0 ? <p className="text-sm text-muted">No sales yet.</p> : <BarList rows={trend.topMedicines.map((t) => ({ label: t.name, value: t.revenue, note: `${t.units.toLocaleString()} units sold, profit ${money(t.profit)}` }))} />}
           </Card>
         </div>
       )}
 
       <Card className="mt-5">
-        <div className="flex items-center justify-between border-b border-line px-4 py-3"><h2 className="font-semibold">Recent transactions</h2><Link href="/sales" className="text-sm text-pine hover:underline">All sales</Link></div>
+        <div className="flex items-center justify-between border-b border-line px-4 py-3"><h2 className="text-lg font-bold">Recent transactions</h2><Link href="/sales" className="text-sm text-pine hover:underline">All sales</Link></div>
         {d.recentTransactions.length === 0 ? (
           <p className="p-6 text-center text-muted">No transactions yet.</p>
         ) : (

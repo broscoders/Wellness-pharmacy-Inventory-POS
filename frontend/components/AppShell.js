@@ -110,7 +110,7 @@ function Shell({ children }) {
         <div className="flex h-16 items-center gap-2 border-b border-white/10 pl-2 pr-5 text-[15px] font-bold tracking-tight text-white"><button onClick={() => fold(true)} className="rounded-xl p-2 text-white hover:bg-white/10" aria-label="Fold menu" title="Fold menu to give the screen more room"><Menu className="h-5 w-5" /></button><span className="brand-gradient flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"><Pill className="h-4 w-4" /></span><span className="truncate">{settings.shopName}</span></div>
         {nav}
         <div className="border-t border-white/10 p-3">
-          <div className="px-3 pb-2"><p className="truncate font-semibold text-white">{user.name}</p><p className="text-xs capitalize text-emerald-200/60">{user.role}</p></div>
+          <div className="glass mb-2 flex items-center gap-3 rounded-2xl p-3"><span className="brand-gradient flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white">{(user.name || "?").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}</span><div className="min-w-0"><p className="truncate font-semibold text-white">{user.name}</p><p className="flex items-center gap-1.5 text-xs capitalize text-emerald-200/70"><i className="live-dot" /> {user.role}</p></div></div>
           <button onClick={() => setPwd(true)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-emerald-100/70 hover:bg-white/10 hover:text-white"><KeyRound className="h-[18px] w-[18px]" /> Change password</button>
           <button onClick={logout} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-emerald-100/70 hover:bg-white/10 hover:text-white"><LogOut className="h-[18px] w-[18px]" /> Sign out</button>
         </div>
@@ -132,7 +132,7 @@ function Shell({ children }) {
         </div>
       )}
 
-      <main className="min-w-0 p-4 lg:p-6">{user.mustChangePassword ? null : blocked ? <NoAccess home={homeFor(can)} /> : children}</main>
+      <main className="min-w-0 p-4 lg:p-8">{user.mustChangePassword ? null : blocked ? <NoAccess home={homeFor(can)} /> : children}</main>
       {(pwd || user.mustChangePassword) && <ChangePassword forced={!!user.mustChangePassword} onClose={() => setPwd(false)} />}
     </div>
   );

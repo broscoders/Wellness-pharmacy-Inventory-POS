@@ -300,7 +300,7 @@ export default function PosPage() {
       {/* top bar: one slim row so the medicine list gets the height */}
       <div className="no-print flex flex-wrap items-center justify-between gap-x-3 gap-y-1 xl:flex-nowrap">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5 xl:flex-nowrap">
-          <h1 className="text-lg font-semibold tracking-tight">POS / Billing</h1>
+          <h1 className="text-xl font-extrabold tracking-tight">POS / Billing</h1>
           <p className="flex items-center gap-1.5 text-xs text-muted">
             {!catalog?.ready ? 'Loading medicines...' : offline
               ? <span className="inline-flex items-center gap-1 font-medium text-amber"><WifiOff className="h-3.5 w-3.5" /> {catalog.status.error}: using the saved list ({catalog.count.toLocaleString()} medicines)</span>
@@ -392,10 +392,10 @@ export default function PosPage() {
           <Card className="no-print p-2.5 xl:flex xl:min-h-0 xl:flex-col">
             {/* details can scroll on a short screen; the total and the Complete sale button never leave the bottom */}
             <div className="mb-2">
-            <div className="rounded-lg bg-pine-dark px-3 py-2 text-white">
+            <div className="hero rounded-2xl px-4 py-3 text-white shadow-lg shadow-pine/20">
                 <div className="num flex items-end justify-between">
                   <span className="text-sm text-white/70">Total</span>
-                  <span className="text-2xl font-semibold leading-none tracking-tight">{money(total)}</span>
+                  <span className="text-3xl font-extrabold leading-none tracking-tight">{money(total)}</span>
                 </div>
                 <div className="num mt-1.5 flex items-center justify-between gap-3 text-xs text-white/70">
                   <span>Subtotal {money(subtotal)}</span>
@@ -448,7 +448,7 @@ export default function PosPage() {
                 </div>
               )}
               <ErrorNote error={error} />
-              <Button className="h-11 w-full text-base" disabled={!canPay} loading={busy} onClick={checkout}>
+              <Button className="h-12 w-full text-base" disabled={!canPay} loading={busy} onClick={checkout}>
                 Complete sale{total ? ` - ${money(total)}` : ''} <span className="ml-1 hidden rounded bg-white/20 px-1.5 text-xs font-normal xl:inline">F9</span>
               </Button>
             </div>
