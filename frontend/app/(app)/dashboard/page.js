@@ -32,10 +32,24 @@ function Hero({ name, shop, d }) {
   );
 }
 
-function Stat({ icon: Icon, label, value, tone = 'default', note }) {
-  const tones = { default: 'text-white brand-gradient shadow-md shadow-pine/30', warn: 'text-white bg-gradient-to-br from-amber-400 to-orange-500 shadow-md shadow-orange-300/40', bad: 'text-white bg-gradient-to-br from-rose-500 to-red-600 shadow-md shadow-red-300/40' };
+function Spark({ values, color = '#10b981' }) {
+  if (!values || values.length < 2) return null;
+  const max = Math.max(...values, 1); const W = 120; const H = 34;
+  const pts = values.map((v, i) => `${((i / (values.length - 1)) * W).toFixed(1)},${(H - 3 - (v / max) * (H - 8)).toFixed(1)}`);
+  const id = `sp${color.slice(1)}`;
   return (
-    <Card className="p-5 hover:-translate-y-0.5">
+    <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 h-9 w-full" aria-hidden="true" preserveAspectRatio="none">
+      <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".35" /><stop offset="1" stopColor={color} stopOpacity="0" /></linearGradient></defs>
+      <path d={`M${pts.join(' L')} L${W},${H} L0,${H} Z`} fill={`url(#${id})`} />
+      <path d={`M${pts.join(' L')}`} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+function Stat({ icon: Icon, label, value, tone = 'default', note, href, spark }) {
+  const tones = { default: 'text-white brand-gradient shadow-md shadow-pine/30', warn: 'text-white bg-gradient-to-br from-amber-400 to-orange-500 shadow-md shadow-orange-300/40', bad: 'text-white bg-gradient-to-br from-rose-500 to-red-600 shadow-md shadow-red-300/40' };
+  const body = (
+    <Card className="group h-full p-5 hover:-translate-y-0.5">
       <div className="flex items-center gap-3">
         <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${tones[tone]}`}><Icon className="h-5 w-5" /></span>
         <div className="min-w-0">
@@ -44,8 +58,10 @@ function Stat({ icon: Icon, label, value, tone = 'default', note }) {
           {note && <p className="text-xs text-muted">{note}</p>}
         </div>
       </div>
+      {spark && <Spark values={spark} color={tone === 'warn' ? '#f59e0b' : tone === 'bad' ? '#ef4444' : '#10b981'} />}
     </Card>
   );
+  return href ? <Link href={href} className="block">{body}</Link> : body;
 }
 
 export default function DashboardPage() {
@@ -77,14 +93,14 @@ export default function DashboardPage() {
       <Hero name={user?.name} shop={settings.shopName} d={d} />
       <BackupReminder />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat icon={ShoppingBag} label="Today's sales" value={money(d.todaySales)} note={`${d.todaySalesCount} invoices`} />
+        <Stat icon={ShoppingBag} label="Today's sales" value={money(d.todaySales)} note={`${d.todaySalesCount} invoices`} href="/sales" spark={trend?.days?.map((x) => x.sales)} />
         {d.todayPurchases !== undefined && <Stat icon={Truck} label="Today's purchases" value={money(d.todayPurchases)} />}
-        {d.todayProfit !== undefined && <Stat icon={TrendingUp} label="Today's profit" value={money(d.todayProfit)} note="Gross, before expenses" />}
+        {d.todayProfit !== undefined && <Stat icon={TrendingUp} label="Today's profit" value={money(d.todayProfit)} note="Gross, before expenses" href="/finance" spark={trend?.days?.map((x) => x.profit)} />}
         <Stat icon={Boxes} label="Total stock" value={`${Number(d.totalStockUnits).toLocaleString()} units`} note={d.stockValue !== undefined ? `Value ${money(d.stockValue)}` : undefined} />
-        <Stat icon={AlertTriangle} label="Low stock" value={d.lowStock} tone={d.lowStock ? 'warn' : 'default'} note={`${d.outOfStock} out of stock`} />
-        <Stat icon={Clock} label="Near expiry (90 days)" value={d.nearExpiry} tone={d.nearExpiry ? 'warn' : 'default'} note={`${d.nearExpiry30} within 30 days`} />
-        <Stat icon={PackageX} label="Expired stock" value={d.expired} tone={d.expired ? 'bad' : 'default'} note="Blocked from sale" />
-        <Stat icon={Users} label="Customer udhaar" value={money(d.customerOutstanding)} />
+        <Stat icon={AlertTriangle} label="Low stock" value={d.lowStock} tone={d.lowStock ? 'warn' : 'default'} note={`${d.outOfStock} out of stock`} href="/inventory" />
+        <Stat icon={Clock} label="Near expiry (90 days)" value={d.nearExpiry} tone={d.nearExpiry ? 'warn' : 'default'} note={`${d.nearExpiry30} within 30 days`} href="/inventory" />
+        <Stat icon={PackageX} label="Expired stock" value={d.expired} tone={d.expired ? 'bad' : 'default'} note="Blocked from sale" href="/expiry-returns" />
+        <Stat icon={Users} label="Customer udhaar" value={money(d.customerOutstanding)} href="/udhaar" />
         {d.supplierPayables !== undefined && <Stat icon={Wallet} label="Supplier payables" value={money(d.supplierPayables)} />}
       </div>
 

@@ -2,12 +2,13 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { KeyRound, LayoutDashboard, ShoppingCart, Receipt, Pill, LogOut, Menu, X, Boxes, Truck, Users, Building2, FileText, Wallet, BarChart3, Tags, UserCog, ScrollText, Settings, Landmark, ClipboardList, TrendingUp, Users2, ClipboardCheck, Barcode as BarcodeIcon, PackageX, BellRing, CalendarCheck } from 'lucide-react';
+import { Search as SearchIcon, KeyRound, LayoutDashboard, ShoppingCart, Receipt, Pill, LogOut, Menu, X, Boxes, Truck, Users, Building2, FileText, Wallet, BarChart3, Tags, UserCog, ScrollText, Settings, Landmark, ClipboardList, TrendingUp, Users2, ClipboardCheck, Barcode as BarcodeIcon, PackageX, BellRing, CalendarCheck } from 'lucide-react';
 import { homeFor, pageFor } from '@/lib/access';
 import { useAuth } from '@/context/AuthContext';
 import { Spinner } from '@/components/ui';
 import ChangePassword from '@/components/ChangePassword';
 import { SettingsProvider, useSettings } from '@/context/SettingsContext';
+import CommandPalette from '@/components/CommandPalette';
 
 // Only pages that exist are listed. Each item shows only if the user has the permission.
 const GROUPS = [
@@ -58,6 +59,8 @@ function Shell({ children }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pwd, setPwd] = useState(false);
+  const [cmd, setCmd] = useState(false);
+  useEffect(() => { const h = (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setCmd((v) => !v); } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, []);
   // Desktop: the menu can be folded into a narrow icon strip to give the screen more room (remembered on this computer).
   const [pref, setPref] = useState(null); // null = nothing chosen yet
   useEffect(() => { try { const v = localStorage.getItem('wp_sidebar_collapsed'); setPref(v === null ? null : v === '1'); } catch { /* storage blocked */ } }, []);
@@ -73,6 +76,8 @@ function Shell({ children }) {
   const blocked = !!page && !can(page.perm);
   const groups = GROUPS.map((g) => ({ ...g, items: g.items.filter((n) => can(n.perm)) })).filter((g) => g.items.length);
 
+  const palette = groups.flatMap((g) => g.items.map((i) => ({ ...i, group: g.title })));
+  const isPos = pathname.startsWith('/pos');
   const nav = (
     <nav className="flex flex-1 flex-col gap-4 overflow-y-auto p-3">
       {groups.map((g) => (
@@ -132,7 +137,17 @@ function Shell({ children }) {
         </div>
       )}
 
-      <main className="min-w-0 p-4 lg:p-8">{user.mustChangePassword ? null : blocked ? <NoAccess home={homeFor(can)} /> : children}</main>
+      <div className="min-w-0">
+        {!isPos && (
+          <header className="no-print sticky top-0 z-30 hidden items-center justify-between gap-4 border-b border-line/70 bg-white/70 px-8 py-3 backdrop-blur-xl lg:flex">
+            <div className="min-w-0"><p className="text-[11px] font-semibold uppercase tracking-widest text-muted">{palette.find((p) => pathname === p.href || pathname.startsWith(`${p.href}/`))?.group || 'Wellness'}</p><p className="truncate text-sm font-bold">{page?.label || 'Home'}</p></div>
+            <button onClick={() => setCmd(true)} className="flex h-10 w-full max-w-sm items-center gap-3 rounded-xl border border-line bg-white/80 px-3 text-sm text-muted shadow-sm transition hover:border-pine/40 hover:shadow"><SearchIcon className="h-4 w-4" /> <span className="flex-1 text-left">Quick search...</span><kbd className="rounded-md border border-line bg-paper px-1.5 py-0.5 text-[11px]">Ctrl K</kbd></button>
+            <div className="text-right text-xs text-muted"><p className="font-semibold text-ink">{new Date().toLocaleDateString('en-GB', { weekday: 'long' })}</p><p>{new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p></div>
+          </header>
+        )}
+        <main className={`min-w-0 p-4 ${isPos ? 'lg:p-6' : 'lg:p-8'}`}>{user.mustChangePassword ? null : blocked ? <NoAccess home={homeFor(can)} /> : children}</main>
+      </div>
+      <CommandPalette open={cmd} onClose={() => setCmd(false)} items={palette} />
       {(pwd || user.mustChangePassword) && <ChangePassword forced={!!user.mustChangePassword} onClose={() => setPwd(false)} />}
     </div>
   );

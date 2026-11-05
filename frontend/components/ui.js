@@ -21,7 +21,7 @@ export function Button({ variant = 'primary', size = 'md', className = '', loadi
 // Default size/padding only apply when the caller did not pass their own, so classes never fight each other.
 const has = (c, re) => new RegExp(`(^|\\s)(${re})`).test(c);
 function fieldClass(className = '', extra = '') {
-  const base = 'rounded-xl border border-line bg-white text-ink placeholder:text-muted/70 focus:outline-none focus:border-pine focus:ring-2 focus:ring-pine/20';
+  const base = 'rounded-xl border border-line bg-white text-ink shadow-sm shadow-black/[.02] placeholder:text-muted/70 transition focus:outline-none focus:border-pine focus:ring-4 focus:ring-pine/15';
   const w = has(className, 'w-') ? '' : 'w-full';
   const h = has(className, 'h-') || extra ? '' : 'h-10';
   const pad = has(className, 'px-') ? '' : has(className, 'pl-') ? 'pr-3' : 'px-3';
@@ -61,6 +61,7 @@ export function PageHeader({ title, subtitle, actions }) {
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
         <h1 className="text-2xl font-extrabold tracking-tight text-ink">{title}</h1>
+        <span className="brand-gradient mt-1.5 block h-1 w-10 rounded-full" />
         {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
