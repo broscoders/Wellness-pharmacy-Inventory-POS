@@ -77,11 +77,11 @@ function Shell({ children }) {
     <nav className="flex flex-1 flex-col gap-4 overflow-y-auto p-3">
       {groups.map((g) => (
         <div key={g.title}>
-          <p className="mb-1 px-3 text-xs font-medium text-muted">{g.title}</p>
+          <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-widest text-emerald-200/50">{g.title}</p>
           {g.items.map(({ href, label, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(`${href}/`);
             return (
-              <Link key={href} href={href} className={`flex items-center gap-3 rounded-md px-3 py-2 text-[14px] font-medium ${active ? 'bg-pine text-white' : 'text-ink hover:bg-mint'}`}>
+              <Link key={href} href={href} className={`flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] font-medium transition-colors ${active ? 'brand-gradient text-white shadow-lg shadow-black/20' : 'text-emerald-50/80 hover:bg-white/10 hover:text-white'}`}>
                 <Icon className="h-[18px] w-[18px]" /> {label}
               </Link>
             );
@@ -95,39 +95,39 @@ function Shell({ children }) {
     <div className={`min-h-screen lg:grid ${collapsed ? 'lg:grid-cols-[56px_1fr]' : 'lg:grid-cols-[240px_1fr]'}`}>
       {collapsed ? (
         // folded menu: icons only. The 3-bar button opens the full menu over the page, like on a phone.
-        <aside className="no-print hidden flex-col items-center border-r border-line bg-white lg:sticky lg:top-0 lg:flex lg:h-screen">
-          <button onClick={() => setOpen(true)} className="mt-3 rounded-md p-2 text-pine-dark hover:bg-mint" aria-label="Open menu" title="Open menu"><Menu className="h-6 w-6" /></button>
+        <aside className="no-print hidden flex-col items-center sidebar-dark lg:sticky lg:top-0 lg:flex lg:h-screen">
+          <button onClick={() => setOpen(true)} className="mt-3 rounded-xl p-2 text-white hover:bg-white/10" aria-label="Open menu" title="Open menu"><Menu className="h-6 w-6" /></button>
           <nav className="mt-2 flex flex-1 flex-col items-center gap-1 overflow-y-auto py-2" aria-label="Menu icons">
             {groups.flatMap((g) => g.items).map(({ href, label, icon: Icon }) => {
               const active = pathname === href || pathname.startsWith(`${href}/`);
-              return <Link key={href} href={href} title={label} aria-label={label} className={`rounded-md p-2 ${active ? 'bg-pine text-white' : 'text-ink hover:bg-mint'}`}><Icon className="h-[18px] w-[18px]" /></Link>;
+              return <Link key={href} href={href} title={label} aria-label={label} className={`rounded-xl p-2 ${active ? 'brand-gradient text-white shadow-lg shadow-black/20' : 'text-emerald-50/80 hover:bg-white/10 hover:text-white'}`}><Icon className="h-[18px] w-[18px]" /></Link>;
             })}
           </nav>
-          <button onClick={logout} className="mb-3 rounded-md p-2 text-muted hover:bg-mint hover:text-ink" aria-label="Sign out" title="Sign out"><LogOut className="h-[18px] w-[18px]" /></button>
+          <button onClick={logout} className="mb-3 rounded-xl p-2 text-emerald-100/70 hover:bg-white/10 hover:text-white" aria-label="Sign out" title="Sign out"><LogOut className="h-[18px] w-[18px]" /></button>
         </aside>
       ) : (
-      <aside className="no-print hidden border-r border-line bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
-        <div className="flex h-14 items-center gap-2 border-b border-line pl-2 pr-5 font-semibold text-pine-dark"><button onClick={() => fold(true)} className="rounded-md p-2 text-pine-dark hover:bg-mint" aria-label="Fold menu" title="Fold menu to give the screen more room"><Menu className="h-5 w-5" /></button><span className="truncate">{settings.shopName}</span></div>
+      <aside className="no-print hidden sidebar-dark lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
+        <div className="flex h-16 items-center gap-2 border-b border-white/10 pl-2 pr-5 text-[15px] font-bold tracking-tight text-white"><button onClick={() => fold(true)} className="rounded-xl p-2 text-white hover:bg-white/10" aria-label="Fold menu" title="Fold menu to give the screen more room"><Menu className="h-5 w-5" /></button><span className="brand-gradient flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"><Pill className="h-4 w-4" /></span><span className="truncate">{settings.shopName}</span></div>
         {nav}
-        <div className="border-t border-line p-3">
-          <div className="px-3 pb-2"><p className="truncate font-medium">{user.name}</p><p className="text-xs capitalize text-muted">{user.role}</p></div>
-          <button onClick={() => setPwd(true)} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-muted hover:bg-mint hover:text-ink"><KeyRound className="h-[18px] w-[18px]" /> Change password</button>
-          <button onClick={logout} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-muted hover:bg-mint hover:text-ink"><LogOut className="h-[18px] w-[18px]" /> Sign out</button>
+        <div className="border-t border-white/10 p-3">
+          <div className="px-3 pb-2"><p className="truncate font-semibold text-white">{user.name}</p><p className="text-xs capitalize text-emerald-200/60">{user.role}</p></div>
+          <button onClick={() => setPwd(true)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-emerald-100/70 hover:bg-white/10 hover:text-white"><KeyRound className="h-[18px] w-[18px]" /> Change password</button>
+          <button onClick={logout} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-emerald-100/70 hover:bg-white/10 hover:text-white"><LogOut className="h-[18px] w-[18px]" /> Sign out</button>
         </div>
       </aside>
       )}
 
-      <div className="no-print flex h-14 items-center justify-between border-b border-line bg-white px-4 lg:hidden">
-        <span className="flex items-center gap-2 font-semibold text-pine-dark"><Pill className="h-5 w-5" /> {settings.shopName}</span>
-        <button onClick={() => setOpen(true)} aria-label="Open menu"><Menu className="h-6 w-6" /></button>
+      <div className="no-print flex h-14 items-center justify-between sidebar-dark px-4 lg:hidden">
+        <span className="flex items-center gap-2 font-bold text-white"><Pill className="h-5 w-5" /> {settings.shopName}</span>
+        <button onClick={() => setOpen(true)} aria-label="Open menu" className="text-white"><Menu className="h-6 w-6" /></button>
       </div>
       {open && (
         <div className="no-print fixed inset-0 z-40 bg-ink/40" onClick={() => setOpen(false)}>
-          <aside className="flex h-full w-64 flex-col bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex h-14 items-center justify-between border-b border-line px-5 font-semibold text-pine-dark">Menu <button onClick={() => setOpen(false)}><X className="h-5 w-5" /></button></div>
+          <aside className="flex h-full w-72 flex-col sidebar-dark shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex h-14 items-center justify-between border-b border-white/10 px-5 font-semibold text-white">Menu <button onClick={() => setOpen(false)}><X className="h-5 w-5" /></button></div>
             {nav}
-            <button onClick={() => { setOpen(false); setPwd(true); }} className="mx-3 flex items-center gap-3 rounded-md px-3 py-2 text-muted hover:bg-mint"><KeyRound className="h-[18px] w-[18px]" /> Change password</button>
-            <button onClick={logout} className="m-3 flex items-center gap-3 rounded-md px-3 py-2 text-muted hover:bg-mint"><LogOut className="h-[18px] w-[18px]" /> Sign out</button>
+            <button onClick={() => { setOpen(false); setPwd(true); }} className="mx-3 flex items-center gap-3 rounded-xl px-3 py-2 text-emerald-100/70 hover:bg-white/10"><KeyRound className="h-[18px] w-[18px]" /> Change password</button>
+            <button onClick={logout} className="m-3 flex items-center gap-3 rounded-xl px-3 py-2 text-emerald-100/70 hover:bg-white/10"><LogOut className="h-[18px] w-[18px]" /> Sign out</button>
           </aside>
         </div>
       )}

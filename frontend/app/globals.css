@@ -1,23 +1,23 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ink: #14211d;
-  --color-muted: #5b6b66;
-  --color-line: #dce5e1;
-  --color-paper: #f5f8f7;
+  --color-ink: #0b1f1c;
+  --color-muted: #5f7570;
+  --color-line: #e3ece9;
+  --color-paper: #f2f7f6;
   --color-card: #ffffff;
-  --color-pine: #0e6b5c;
-  --color-pine-dark: #0a4f44;
-  --color-mint: #e4f1ed;
-  --color-amber: #b7791f;
-  --color-amber-soft: #fbf1dc;
-  --color-danger: #b42318;
-  --color-danger-soft: #fdeceb;
-  --font-sans: "Segoe UI", "Inter", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --color-pine: #0d9373;
+  --color-pine-dark: #064e3f;
+  --color-mint: #e6f6f1;
+  --color-amber: #b45309;
+  --color-amber-soft: #fef3c7;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fee2e2;
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
 }
 
 html, body { height: 100%; }
-body { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-sans); font-size: 14px; line-height: 1.45; }
+body { background: radial-gradient(1200px 500px at 85% -10%, #d5f1e8 0%, transparent 60%), var(--color-paper); background-attachment: fixed; color: var(--color-ink); font-family: var(--font-sans); font-size: 14px; line-height: 1.45; }
 .num { font-variant-numeric: tabular-nums; }
 
 /* Receipt printing: only .print-root (a copy of the receipt placed at the end of <body>) is printed.
@@ -54,3 +54,17 @@ body { background: var(--color-paper); color: var(--color-ink); font-family: var
 }
 
 .no-scrollbar { scrollbar-width: none; } .no-scrollbar::-webkit-scrollbar { display: none; }
+
+
+/* ---- Premium look: soft depth, glass, gradients ---- */
+.card-premium { box-shadow: 0 1px 2px rgba(6,78,63,.05), 0 8px 24px -12px rgba(6,78,63,.18); transition: box-shadow .2s, transform .2s; }
+.card-premium:hover { box-shadow: 0 2px 4px rgba(6,78,63,.06), 0 16px 32px -14px rgba(6,78,63,.28); }
+.sidebar-dark { background: linear-gradient(180deg, #05382e 0%, #064e3f 55%, #04302a 100%); color: #d6efe8; }
+.brand-gradient { background: linear-gradient(135deg, #10b981 0%, #0d9373 45%, #064e3f 100%); }
+.text-gradient { background: linear-gradient(90deg, #6ee7b7, #ffffff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.glass { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); backdrop-filter: blur(10px); }
+@keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+.floaty { animation: floaty 6s ease-in-out infinite; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+main > * { animation: fadeUp .35s ease both; }
+::selection { background: #a7f3d0; }

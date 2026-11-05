@@ -10,14 +10,14 @@ import { Badge, Card, ErrorNote, PageHeader, Spinner, Table } from '@/components
 import { useSettings } from '@/context/SettingsContext';
 
 function Stat({ icon: Icon, label, value, tone = 'default', note }) {
-  const tones = { default: 'text-pine-dark bg-mint', warn: 'text-amber bg-amber-soft', bad: 'text-danger bg-danger-soft' };
+  const tones = { default: 'text-white brand-gradient shadow-md shadow-pine/30', warn: 'text-white bg-gradient-to-br from-amber-400 to-orange-500 shadow-md shadow-orange-300/40', bad: 'text-white bg-gradient-to-br from-rose-500 to-red-600 shadow-md shadow-red-300/40' };
   return (
-    <Card className="p-4">
+    <Card className="p-5 hover:-translate-y-0.5">
       <div className="flex items-center gap-3">
-        <span className={`flex h-10 w-10 items-center justify-center rounded-md ${tones[tone]}`}><Icon className="h-5 w-5" /></span>
+        <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${tones[tone]}`}><Icon className="h-5 w-5" /></span>
         <div className="min-w-0">
-          <p className="text-[13px] text-muted">{label}</p>
-          <p className="num truncate text-xl font-semibold">{value}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
+          <p className="num truncate text-2xl font-bold">{value}</p>
           {note && <p className="text-xs text-muted">{note}</p>}
         </div>
       </div>

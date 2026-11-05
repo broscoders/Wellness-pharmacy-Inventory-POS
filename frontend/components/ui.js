@@ -2,10 +2,10 @@
 import { X, Loader2 } from 'lucide-react';
 
 export function Button({ variant = 'primary', size = 'md', className = '', loading, children, ...props }) {
-  const base = 'inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-pine/40';
+  const base = 'inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all active:scale-[.98] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-pine/40';
   const sizes = { sm: 'h-8 px-3 text-[13px]', md: 'h-10 px-4', lg: 'h-12 px-6 text-base' };
   const variants = {
-    primary: 'bg-pine text-white hover:bg-pine-dark',
+    primary: 'brand-gradient text-white shadow-md shadow-pine/25 hover:brightness-110 hover:shadow-lg',
     secondary: 'bg-white text-ink border border-line hover:bg-mint',
     danger: 'bg-danger text-white hover:opacity-90',
     ghost: 'text-muted hover:bg-mint hover:text-ink',
@@ -21,7 +21,7 @@ export function Button({ variant = 'primary', size = 'md', className = '', loadi
 // Default size/padding only apply when the caller did not pass their own, so classes never fight each other.
 const has = (c, re) => new RegExp(`(^|\\s)(${re})`).test(c);
 function fieldClass(className = '', extra = '') {
-  const base = 'rounded-md border border-line bg-white text-ink placeholder:text-muted/70 focus:outline-none focus:border-pine focus:ring-2 focus:ring-pine/20';
+  const base = 'rounded-xl border border-line bg-white text-ink placeholder:text-muted/70 focus:outline-none focus:border-pine focus:ring-2 focus:ring-pine/20';
   const w = has(className, 'w-') ? '' : 'w-full';
   const h = has(className, 'h-') || extra ? '' : 'h-10';
   const pad = has(className, 'px-') ? '' : has(className, 'pl-') ? 'pr-3' : 'px-3';
@@ -49,18 +49,18 @@ export function Badge({ tone = 'neutral', children }) {
     warn: 'bg-amber-soft text-amber border-amber/30',
     bad: 'bg-danger-soft text-danger border-danger/20',
   };
-  return <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${tones[tone]}`}>{children}</span>;
+  return <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tones[tone]}`}>{children}</span>;
 }
 
 export function Card({ className = '', children }) {
-  return <div className={`rounded-lg border border-line bg-card ${className}`}>{children}</div>;
+  return <div className={`rounded-2xl border border-line bg-card card-premium ${className}`}>{children}</div>;
 }
 
 export function PageHeader({ title, subtitle, actions }) {
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
         {subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
@@ -71,9 +71,9 @@ export function PageHeader({ title, subtitle, actions }) {
 export function Modal({ open, onClose, title, children, width = 'max-w-lg', footer }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-ink/40 p-4 pt-[4vh]" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-ink/50 backdrop-blur-sm p-4 pt-[4vh]" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       {/* the window never taller than the screen: the middle scrolls, the title and the buttons stay in view */}
-      <div className={`flex max-h-[calc(100dvh-2rem)] w-full ${width} flex-col rounded-lg bg-white shadow-xl`} role="dialog" aria-modal="true" aria-label={title}>
+      <div className={`flex max-h-[calc(100dvh-2rem)] w-full ${width} flex-col rounded-2xl bg-white shadow-2xl`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="no-print flex shrink-0 items-center justify-between border-b border-line px-5 py-3">
           <h2 className="text-base font-semibold">{title}</h2>
           <button onClick={onClose} className="rounded p-1 text-muted hover:bg-mint" aria-label="Close"><X className="h-5 w-5" /></button>
